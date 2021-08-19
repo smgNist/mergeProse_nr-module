@@ -30,6 +30,7 @@ def build(bld):
         'helper/scenario-parameters.cc',
         'helper/three-gpp-ftp-m1-helper.cc',
         'helper/nr-sl-helper.cc',
+        'helper/nr-sl-prose-helper.cc',      
         'model/nr-net-device.cc',
         'model/nr-gnb-net-device.cc',
         'model/nr-ue-net-device.cc',
@@ -119,6 +120,7 @@ def build(bld):
         'model/nr-sl-phy-mac-common.cc',
         'model/nr-sl-interference.cc',
         'model/nr-sl-chunk-processor.cc',
+        'model/nr-sl-ue-mac-scheduler-nist.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('nr')
@@ -173,6 +175,7 @@ def build(bld):
         'helper/scenario-parameters.h',
         'helper/three-gpp-ftp-m1-helper.h',
         'helper/nr-sl-helper.h',
+        'helper/nr-sl-prose-helper.h',
         'model/nr-net-device.h',
         'model/nr-gnb-net-device.h',
         'model/nr-ue-net-device.h',
@@ -270,6 +273,7 @@ def build(bld):
         'model/nr-sl-phy-mac-common.h',
         'model/nr-sl-interference.h',
         'model/nr-sl-chunk-processor.h',
+        'model/nr-sl-ue-mac-scheduler-nist.h',
         ]
 
     if bld.env.ENABLE_EXAMPLES:

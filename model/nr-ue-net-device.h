@@ -35,6 +35,7 @@ class LteUeRrc;
 class NrGnbNetDevice;
 class BandwidthPartUe;
 class BwpManagerUe;
+class NrSlUeService;
 
 /**
  * \ingroup ue
@@ -184,6 +185,12 @@ public:
    */
   void UpdateConfig (void);
 
+  /**
+   * \brief Get a pointer to the SL Service layer
+   * \return the SL service layer pointer
+   */
+  Ptr<NrSlUeService> GetSlUeService (void) const;
+
 protected:
   // inherited from Object
   virtual void DoInitialize (void);
@@ -201,6 +208,8 @@ private:
 
   std::map < uint8_t, Ptr<BandwidthPartUe> > m_ccMap; ///< component carrier map
   Ptr<LteUeComponentCarrierManager> m_componentCarrierManager; ///< the component carrier manager
+
+  Ptr<NrSlUeService> m_slSvc;                //!< SL Service layer pointer (e.g. ProSe layer)
 
 };
 

@@ -1,0 +1,197 @@
+/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
+/*
+ * NIST-developed software is provided by NIST as a public
+ * service. You may use, copy and distribute copies of the software in
+ * any medium, provided that you keep intact this entire notice. You
+ * may improve, modify and create derivative works of the software or
+ * any portion of the software, and you may copy and distribute such
+ * modifications or works. Modified works should carry a notice
+ * stating that you changed the software and should note the date and
+ * nature of any such change. Please explicitly acknowledge the
+ * National Institute of Standards and Technology as the source of the
+ * software.
+ *
+ * NIST-developed software is expressly provided "AS IS." NIST MAKES
+ * NO WARRANTY OF ANY KIND, EXPRESS, IMPLIED, IN FACT OR ARISING BY
+ * OPERATION OF LAW, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+ * WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+ * NON-INFRINGEMENT AND DATA ACCURACY. NIST NEITHER REPRESENTS NOR
+ * WARRANTS THAT THE OPERATION OF THE SOFTWARE WILL BE UNINTERRUPTED
+ * OR ERROR-FREE, OR THAT ANY DEFECTS WILL BE CORRECTED. NIST DOES NOT
+ * WARRANT OR MAKE ANY REPRESENTATIONS REGARDING THE USE OF THE
+ * SOFTWARE OR THE RESULTS THEREOF, INCLUDING BUT NOT LIMITED TO THE
+ * CORRECTNESS, ACCURACY, RELIABILITY, OR USEFULNESS OF THE SOFTWARE.
+ *
+ * You are solely responsible for determining the appropriateness of
+ * using and distributing the software and you assume all risks
+ * associated with its use, including but not limited to the risks and
+ * costs of program errors, compliance with applicable laws, damage to
+ * or loss of data, programs or equipment, and the unavailability or
+ * interruption of operation. This software is not intended to be used
+ * in any situation where a failure could cause risk of injury or
+ * damage to property. The software developed by NIST employees is not
+ * subject to copyright protection within the United States.
+ */
+
+#include "nr-sl-prose-helper.h"
+#include <ns3/nr-sl-ue-prose.h>
+
+#include <ns3/nr-ue-net-device.h>
+#include <ns3/nr-sl-ue-rrc.h>
+#include <ns3/lte-ue-rrc.h>
+#include <ns3/nr-sl-ue-service.h>
+#include <ns3/nr-sl-ue-prose.h>
+#include <ns3/epc-ue-nas.h>
+
+#include <ns3/fatal-error.h>
+#include <ns3/log.h>
+
+#include <ns3/pointer.h>
+#include <ns3/simulator.h>
+
+namespace ns3 {
+
+NS_LOG_COMPONENT_DEFINE ("NrSlProseHelper");
+
+NS_OBJECT_ENSURE_REGISTERED (NrSlProseHelper);
+
+NrSlProseHelper::NrSlProseHelper (void)
+
+{
+  NS_LOG_FUNCTION (this);
+}
+
+NrSlProseHelper::~NrSlProseHelper (void)
+{
+  NS_LOG_FUNCTION (this);
+}
+
+TypeId
+NrSlProseHelper::GetTypeId (void)
+{
+  static TypeId
+    tid =
+    TypeId ("ns3::NrSlProseHelper")
+    .SetParent<Object> ()
+    .SetGroupName ("nr")
+    .AddConstructor<NrSlProseHelper> ();
+  return tid;
+}
+
+void
+NrSlProseHelper::DoDispose (void)
+{
+  NS_LOG_FUNCTION (this);
+  Object::DoDispose ();
+}
+
+
+void
+NrSlProseHelper::PrepareUesForProse (NetDeviceContainer c)
+{
+  NS_LOG_FUNCTION (this);
+  for (NetDeviceContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      Ptr<NetDevice> netDev = *i;
+      Ptr<NrUeNetDevice> nrUeDev = netDev->GetObject <NrUeNetDevice>();
+      PrepareSingleUeForProse (nrUeDev);
+    }
+}
+
+void
+NrSlProseHelper::PrepareSingleUeForProse (Ptr<NrUeNetDevice> nrUeDev)
+{
+  NS_LOG_FUNCTION (this);
+
+  //Create ProSe layer
+  Ptr<NrSlUeProse> nrSlUeProse = CreateObject<NrSlUeProse> ();
+
+  //Connect ProSe layer SAPs
+  Ptr<LteUeRrc> lteUeRrc = nrUeDev->GetRrc ();
+  nrSlUeProse->SetNrSlUeSvcRrcSapProvider (lteUeRrc->GetNrSlUeSvcRrcSapProvider ());
+  lteUeRrc->SetNrSlUeSvcRrcSapUser (nrSlUeProse->GetNrSlUeSvcRrcSapUser ());
+
+  Ptr<EpcUeNas> epcUeNas = nrUeDev->GetNas ();
+  nrSlUeProse->SetNrSlUeSvcNasSapProvider (epcUeNas->GetNrSlUeSvcNasSapProvider ());
+  epcUeNas->SetNrSlUeSvcNasSapUser (nrSlUeProse->GetNrSlUeSvcNasSapUser ());
+
+  //Keep the ProSe layer accessible in the net device
+  nrUeDev->SetAttribute ("NrSlService", PointerValue (nrSlUeProse));
+
+}
+
+void
+NrSlProseHelper::PrepareUesForUnicast (NetDeviceContainer c)
+{
+  NS_LOG_FUNCTION (this);
+  for (NetDeviceContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      Ptr<NetDevice> netDev = *i;
+      Ptr<NrUeNetDevice> nrUeDev = netDev->GetObject <NrUeNetDevice>();
+      PrepareSingleUeForUnicast (nrUeDev);
+    }
+}
+
+void
+NrSlProseHelper::PrepareSingleUeForUnicast (Ptr<NrUeNetDevice> nrUeDev)
+{
+  NS_LOG_FUNCTION (this);
+
+  Ptr<NrSlUeProse> nrSlUeProse = nrUeDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  nrSlUeProse->ConfigureUnicast ();
+}
+
+
+void
+NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp)
+{
+  NS_LOG_FUNCTION (this);
+  Ptr<NrUeNetDevice> initUeNetDev = initUe->GetObject <NrUeNetDevice>();
+  Ptr<NrUeNetDevice> trgtUeNetDev = trgtUe->GetObject <NrUeNetDevice>();
+  Ptr<NrSlUeProse> initUeProse = initUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  Ptr<NrSlUeProse> trgtUeProse = trgtUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  Ptr<LteUeRrc> initUeRrc = initUeNetDev->GetRrc ();
+  Ptr<LteUeRrc> trgtUeRrc = trgtUeNetDev->GetRrc ();
+
+  uint32_t initUeL2Id = initUeRrc->GetSourceL2Id ();
+  uint32_t trgtUeL2Id = trgtUeRrc->GetSourceL2Id ();
+
+  NS_LOG_INFO ("initUeL2Id " << initUeL2Id << " trgtUeL2Id " << trgtUeL2Id);
+
+  //Initiating UE
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, initUeProse, initUeL2Id, initUeIp, trgtUeL2Id, true);
+
+  //Target UE
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp, initUeL2Id, false);
+
+}
+
+
+void
+NrSlProseHelper::EstablishIdealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp)
+{
+  NS_LOG_FUNCTION (this);
+  NS_FATAL_ERROR ("This functionality is not implemented yet! ");
+
+  Ptr<NrUeNetDevice> initUeNetDev = initUe->GetObject <NrUeNetDevice>();
+  Ptr<NrUeNetDevice> trgtUeNetDev = trgtUe->GetObject <NrUeNetDevice>();
+  Ptr<NrSlUeProse> initUeProse = initUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  Ptr<NrSlUeProse> trgtUeProse = trgtUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  Ptr<LteUeRrc> initUeRrc = initUeNetDev->GetRrc ();
+  Ptr<LteUeRrc> trgtUeRrc = trgtUeNetDev->GetRrc ();
+
+  uint32_t initUeL2Id = initUeRrc->GetSourceL2Id ();
+  uint32_t trgtUeL2Id = trgtUeRrc->GetSourceL2Id ();
+
+
+  initUeProse->AddDirectLinkConnection (initUeL2Id, initUeIp, trgtUeL2Id, true);
+  trgtUeProse->AddDirectLinkConnection (trgtUeL2Id, trgtUeIp, initUeL2Id, false);
+  //Now we connect the appropriated  SAPs of both NrSlUeProseDirLink to each other
+  //TODO!
+
+}
+
+
+
+} // namespace ns3
+

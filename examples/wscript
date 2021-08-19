@@ -45,3 +45,8 @@ def build(bld):
     obj.source = 'nr-v2x-examples/cttc-nr-v2x-demo-simple.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc'
     obj = bld.create_ns3_program('nr-v2x-west-to-east-highway', ['nr'])
     obj.source = 'nr-v2x-examples/nr-v2x-west-to-east-highway.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc nr-v2x-examples/v2x-kpi.cc nr-v2x-examples/ue-rlc-rx-output-stats.cc'
+    obj = bld.create_ns3_program('nr-prose-unicast-single-link', ['nr'])
+    obj.source = 'nr-prose-examples/nr-prose-unicast-single-link.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc'
+    obj = bld.create_ns3_program('nr-prose-unicast-multi-link', ['nr'])
+    obj.source = 'nr-prose-examples/nr-prose-unicast-multi-link.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc'
+       

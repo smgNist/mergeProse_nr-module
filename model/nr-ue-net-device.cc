@@ -30,6 +30,8 @@
 #include <ns3/object-map.h>
 #include <ns3/pointer.h>
 #include <ns3/ipv6-l3-protocol.h>
+#include <ns3/nr-sl-ue-service.h>
+
 
 namespace ns3 {
 
@@ -73,7 +75,11 @@ NrUeNetDevice::GetTypeId (void)
                    ObjectMapValue (),
                    MakeObjectMapAccessor (&NrUeNetDevice::m_ccMap),
                    MakeObjectMapChecker<BandwidthPartUe> ())
-  ;
+    .AddAttribute ("NrSlService",
+                   "The SL service layer associated to this UeNetDevice",
+                   PointerValue (),
+                   MakePointerAccessor (&NrUeNetDevice::m_slSvc),
+                   MakePointerChecker <NrSlUeService> ());
   return tid;
 }
 
@@ -111,6 +117,11 @@ NrUeNetDevice::DoDispose ()
   m_ccMap.clear ();
   m_componentCarrierManager->Dispose ();
   m_componentCarrierManager = nullptr;
+  if (m_slSvc != nullptr)
+    {
+      m_slSvc->Dispose ();
+      m_slSvc = nullptr;
+    }
   NrNetDevice::DoDispose ();
 }
 
@@ -278,6 +289,13 @@ NrUeNetDevice::GetTargetEnb (void) const
 {
   NS_LOG_FUNCTION (this);
   return m_targetEnb;
+}
+
+Ptr<NrSlUeService>
+NrUeNetDevice::GetSlUeService (void) const
+{
+  NS_LOG_FUNCTION (this);
+  return m_slSvc;
 }
 
 }
