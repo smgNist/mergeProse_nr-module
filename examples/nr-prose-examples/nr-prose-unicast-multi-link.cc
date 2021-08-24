@@ -48,8 +48,10 @@
  * Sidelink will use one operational band, containing one component carrier,
  * and a single bandwidth part centered at the frequency specified by the
  * corresponding input parameter. The system bandwidth, the numerology to
- * be used and the transmission power can be setup as well. Sensing is not
- * enabled.
+ * be used and the transmission power can be setup as well.
+ * Sensing based resource allocation can be enabled by setting the
+ * corresponding input parameter to true. The default configuration is with
+ * no sensing.
  *
  *
  * Topology:
@@ -71,25 +73,28 @@
  * UE1 <-> UE2  |      UE1       |     UE2
  *
  *
-
  * Traffic:
  * A CBR traffic flow that goes from the initiating UE of each link towards
  * the target UE of the link is configured by default. If the 'bidirectional'
  * parameter is set to True, another CBR flow is installed in the target UE
- * torwards the initiating UE. The packet size, data rate and starting time
- * of the flow can be specified in the input parameters.
+ * towards the initiating UE. The packet size, data rate and general starting
+ * time of the flows can be specified in the input parameters. The actual
+ * starting time of the flow is randomized in a interval of 100 ms after the
+ * general starting time to avoid all flows starting at the same time.
  *
  *
  * Output:
- * The example will print on-screen the average Packet Inter-Reception (PIR)
- * type 2 computed as defined in 37.885. Moreover, it saves MAC and PHY layer
- * traces in a sqlite3 database using ns-3 stats module.
+ * The example will print on the standard output the total transmitted and
+ * received bits in the system and the corresponding number of packets. It will
+ * also print the Packet Inter-Reception (PIR) per traffic flow.
+ * MAC and PHY layer traces as well as Application layer traces are stored in a
+ * sqlite3 database using ns-3 stats module.
  *
  * Please refer to the cttc-nr-v2x-demo-simple.cc example for a nice tutorial
- * of scenario setup and NR sidelink configuration
+ * of scenario setup and NR sidelink configuration.
  *
  * \code{.unparsed}
-$ ./waf --run "nr-prose-unicast-single-link --help"
+$ ./waf --run "nr-prose-unicast-multi-link --help"
     \endcode
  *
  */
@@ -109,6 +114,7 @@ $ ./waf --run "nr-prose-unicast-single-link --help"
 #include "ns3/log.h"
 #include "ns3/antenna-module.h"
 #include <iomanip>
+#include <sqlite3.h>
 
 //Dependency of these nr-v2x-examples classes for statistics
 #include "../nr-v2x-examples/ue-mac-pscch-tx-output-stats.h"
@@ -116,6 +122,7 @@ $ ./waf --run "nr-prose-unicast-single-link --help"
 #include "../nr-v2x-examples/ue-phy-pscch-rx-output-stats.h"
 #include "../nr-v2x-examples/ue-phy-pssch-rx-output-stats.h"
 #include "../nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.h"
+#include "../nr-v2x-examples/v2x-kpi.h"
 
 using namespace ns3;
 
@@ -235,33 +242,28 @@ void TransmitPacket (Ptr<const Packet> packet)
   txPktCounter++;
 }
 
+
 /*
- * Global variable used to compute PIR
+ * \brief This callback is used at the end of the simulation to retrieve the
+ *        PIR values per traffic flow from the corresponding DB
+ * \param notUsed not used
+ * \param n number of columns
+ * \param argv holds each value
+ * \param colName holds the column name
  */
-uint64_t pirCounter = 0;
-Time lastPktRxTime;
-Time pir;
-
-/**
- * \brief This method listens to the packet sink application trace Rx.
- * \param packet The packet
- * \param from The address of the transmitter
- */
-void ComputePir (Ptr<const Packet> packet, const Address &from)
+int PrintPirDbCallback (void *notUsed, int n, char **argv, char **colName)
 {
-  NS_UNUSED (from);
-  if (pirCounter == 0 && lastPktRxTime.GetSeconds () == 0.0)
+
+  //column 3: srcIp
+  //column 4: dstIp
+  //column 5: PIR
+  for (int i = 3; i < 6; i++)
     {
-      //this the first packet, just store the time and get out
-      lastPktRxTime = Simulator::Now ();
-      return;
+      std::cout << colName[i] << ": " << argv[i] << "\t";
     }
-  pir = pir + (Simulator::Now () - lastPktRxTime);
-  lastPktRxTime = Simulator::Now ();
-  pirCounter++;
+  std::cout << std::endl;
+  return 0;
 }
-
-
 
 int
 main (int argc, char *argv[])
@@ -276,9 +278,9 @@ main (int argc, char *argv[])
   bool bidirectional = true;
 
   // Simulation timeline parameters
-  Time simTime = Seconds (5); //Total simulation time TODO
+  Time simTime = Seconds (20.0); //Total simulation time
   Time startDirLinkTime = Seconds (2.0); //Time to start the Prose Unicast Direct Link establishment procedure
-  Time startTrafficTime = Seconds (2.1); //Time to start the traffic in the application layer
+  Time startTrafficTime = Seconds (3.0); //Time to start the traffic in the application layer
 
 
   // NR parameters
@@ -286,6 +288,9 @@ main (int argc, char *argv[])
   double centralFrequencyBandSl = 5.89e9; // band n47  TDD //Here band is analogous to channel
   uint16_t bandwidthBandSl = 400; //Multiple of 100 KHz; 400 = 40 MHz
   double txPower = 23; //dBm
+
+  // SL parameters
+  bool sensing = true; //TODO
 
   // Where we will store the output files.
   std::string simTag = "default";
@@ -328,6 +333,10 @@ main (int argc, char *argv[])
   cmd.AddValue ("txPower",
                 "total tx power in dBm",
                 txPower);
+  cmd.AddValue ("sensing",
+                "If true, it enables the sensing based resource selection for "
+                "SL, otherwise, no sensing is applied",
+                sensing);
   cmd.AddValue ("simTag",
                 "tag to be appended to output filenames to distinguish simulation campaigns",
                 simTag);
@@ -424,13 +433,14 @@ main (int argc, char *argv[])
   nrHelper->SetUePhyAttribute ("TxPower", DoubleValue (txPower));
 
   //NR Sidelink attribute of UE MAC, which are would be common for all the UEs
-  nrHelper->SetUeMacAttribute ("EnableSensing", BooleanValue (false));
+  nrHelper->SetUeMacAttribute ("EnableSensing", BooleanValue (sensing));
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (2));
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
   nrHelper->SetUeMacAttribute ("ReservationPeriod", TimeValue (MilliSeconds (10)));
   nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (255)); //TODO: I was 4, I increased it because we hit an error where no HARQ processes were available
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
+  nrHelper->SetUeMacAttribute ("SlThresPsschRsrp", IntegerValue (-128));
 
   uint8_t bwpIdForGbrMcptt = 0;
 
@@ -666,8 +676,15 @@ main (int argc, char *argv[])
    *               Installed in all UEs
    */
   NS_LOG_INFO ("Configuring applications..." );
+  // Random variable to randomize a bit start times of the client applications
+  //to avoid simulation artifacts of all the TX UEs transmitting at the same time.
+  Ptr<UniformRandomVariable> startTimeRnd = CreateObject<UniformRandomVariable> ();
+  startTimeRnd->SetAttribute ("Min", DoubleValue (0));
+  startTimeRnd->SetAttribute ("Max", DoubleValue (0.10));
+
   std::string dataRateString  = std::to_string (dataRate) + "kb/s";
   ApplicationContainer clientApps;
+  std::cout << "Traffic flows: " << std::endl;
   for (uint32_t i = 0; i < ueVoiceContainer.GetN () - 1; ++i)
     {
       for (uint32_t j = i + 1; j < ueVoiceContainer.GetN (); ++j)
@@ -677,10 +694,13 @@ main (int argc, char *argv[])
           sidelinkClient.SetAttribute ("EnableSeqTsSizeHeader", BooleanValue (true));
           sidelinkClient.SetConstantRate (DataRate (dataRateString), udpPacketSize);
           ApplicationContainer app = sidelinkClient.Install (ueVoiceContainer.Get (i)); // Installed in UE i
-          app.Start (startTrafficTime);
+          Time appStart = startTrafficTime + Seconds (startTimeRnd->GetValue ());
+          app.Start (appStart);
           clientApps.Add (app);
           NS_LOG_INFO ("OnOff application installed in UE nodeId " << i << " srcIp " << ipv4AddressVector [i] <<
                        " towards UE nodeId " << j << " dstIp " << ipv4AddressVector [j] );
+          std::cout << ipv4AddressVector [i] << " -> " << ipv4AddressVector [j] <<
+            " start time: " << appStart.GetSeconds () << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
 
           if (bidirectional)
             {
@@ -689,23 +709,22 @@ main (int argc, char *argv[])
               sidelinkClient.SetAttribute ("EnableSeqTsSizeHeader", BooleanValue (true));
               sidelinkClient.SetConstantRate (DataRate (dataRateString), udpPacketSize);
               ApplicationContainer app = sidelinkClient.Install (ueVoiceContainer.Get (j)); // Installed in UE j
-              app.Start (startTrafficTime);
+              Time appStart = startTrafficTime + Seconds (startTimeRnd->GetValue ());
+              app.Start (appStart);
               clientApps.Add (app);
               NS_LOG_INFO ("OnOff application installed in UE nodeId " << j << " srcIp " << ipv4AddressVector [j] <<
                            " towards UE nodeId " << i << " dstIp " << ipv4AddressVector [i] );
+              std::cout << ipv4AddressVector [j] << " -> " << ipv4AddressVector [i] <<
+                " start time: " << appStart.GetSeconds ()  << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
+
+
             }
 
         }
     }
 
   clientApps.Stop (simTime);
-
-  //Output app start, stop and duration
-  double realAppStart =  startTrafficTime.GetSeconds ();
-  double appStopTime = simTime.GetSeconds ();
-
-  std::cout << "App start time " << realAppStart << " sec" << std::endl;
-  std::cout << "App stop time " << appStopTime << " sec" << std::endl;
+  std::cout << "Data rate per flow: " << dataRate << " kbps" << std::endl;
 
   ApplicationContainer serverApps;
   PacketSinkHelper sidelinkSink ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), port));
@@ -725,10 +744,6 @@ main (int argc, char *argv[])
   std::ostringstream path;
   path << "/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx";
   Config::ConnectWithoutContext (path.str (), MakeCallback (&ReceivePacket));
-  path.str ("");
-
-  path << "/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx";
-  Config::ConnectWithoutContext (path.str (), MakeCallback (&ComputePir));
   path.str ("");
 
   path << "/NodeList/*/ApplicationList/*/$ns3::OnOffApplication/Tx";
@@ -777,23 +792,21 @@ main (int argc, char *argv[])
       serverApps.Get (ac)->TraceConnect ("RxWithSeqTsSize", "rx", MakeBoundCallback (&UePacketTraceDb, &pktStats, serverApps.Get (ac)->GetNode (), localAddrs));
     }
 
-  Simulator::Stop (simTime);
+  double txAppDuration = (simTime - startTrafficTime).GetSeconds ();
+  V2xKpi v2xKpi;
+  v2xKpi.SetDbPath (outputDir + exampleName);
+  v2xKpi.SetTxAppDuration (txAppDuration);
+
+
+  Simulator::Stop (simTime + Seconds (1.0));
   Simulator::Run ();
 
-  std::cout << "Total Tx bits = " << txByteCounter * 8 << std:: endl;
-  std::cout << "Total Tx packets = " << txPktCounter << std:: endl;
+  std::cout << "System total Tx bits = " << txByteCounter * 8 << std:: endl;
+  std::cout << "System total  Tx packets = " << txPktCounter << std:: endl;
 
-  std::cout << "Total Rx bits = " << rxByteCounter * 8 << std:: endl;
-  std::cout << "Total Rx packets = " << rxPktCounter << std:: endl;
-  std::cout << "Avrg system thput = " << (rxByteCounter * 8) / (simTime - Seconds (realAppStart)).GetSeconds () / 1000.0 << " kbps" << std:: endl;
-  std::cout << "Average Packet Inter-Reception (PIR) " << pir.GetSeconds () / pirCounter << " sec" << std::endl;
-
-  uint32_t nFlows = ueNum;
-  if (bidirectional)
-    {
-      nFlows = 2 * ueNum;
-    }
-  std::cout << "Avrg flow thput = " << ((rxByteCounter * 8) / nFlows)  / (simTime - Seconds (realAppStart)).GetSeconds () / 1000.0 << " kbps" << std:: endl;
+  std::cout << "System total  Rx bits = " << rxByteCounter * 8 << std:: endl;
+  std::cout << "System total  Rx packets = " << rxPktCounter << std:: endl;
+  std::cout << "System average thput = " << (rxByteCounter * 8) / (simTime - startTrafficTime).GetSeconds () / 1000.0 << " kbps" << std:: endl;
 
 
   /*
@@ -805,9 +818,20 @@ main (int argc, char *argv[])
   psschStats.EmptyCache ();
   pscchPhyStats.EmptyCache ();
   psschPhyStats.EmptyCache ();
-
+  v2xKpi.WriteKpis ();
 
   Simulator::Destroy ();
+
+  //Retrieving PIR stats per flow from the corresponding table in the database
+  std::cout << "PIR stats per flow:" << std::endl;
+
+  std::string dbPath = outputDir + exampleName + ".db";
+  std::string sql = "SELECT * FROM avrgPir;";
+  sqlite3 *db2;
+  sqlite3_open (dbPath.c_str (), &db2);
+  sqlite3_exec (db2, sql.c_str (), PrintPirDbCallback, NULL,NULL  );
+  sqlite3_close (db2);
+
   return 0;
 }
 
