@@ -345,7 +345,10 @@ NrSlHelper::AssignStreams (NetDeviceContainer c, int64_t stream)
             for (uint32_t bwp = 0; bwp < ccMap.size (); bwp++)
               {
                 Ptr<NrSlUeMacScheduler> sched = ccMap.at (bwp)->GetNrSlUeMacScheduler ();
-                currentStream += sched->AssignStreams (currentStream);
+                if (sched != nullptr)
+                  {
+                    currentStream += sched->AssignStreams (currentStream);
+                  }
               }
           }
       }
