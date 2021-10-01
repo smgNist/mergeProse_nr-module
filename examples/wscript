@@ -53,4 +53,6 @@ def build(bld):
     obj.source = 'nr-prose-examples/nr-prose-network-coex.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc nr-v2x-examples/v2x-kpi.cc nr-v2x-examples/ue-rlc-rx-output-stats.cc'
     obj = bld.create_ns3_program('nr-prose-network-same-ue', ['nr','flow-monitor'])
     obj.source = 'nr-prose-examples/nr-prose-network-same-ue.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc nr-v2x-examples/v2x-kpi.cc nr-v2x-examples/ue-rlc-rx-output-stats.cc'
+    obj = bld.create_ns3_program('nr-prose-network-relay', ['nr','flow-monitor'])
+    obj.source = 'nr-prose-examples/nr-prose-network-relay.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc nr-v2x-examples/v2x-kpi.cc nr-v2x-examples/ue-rlc-rx-output-stats.cc'
     

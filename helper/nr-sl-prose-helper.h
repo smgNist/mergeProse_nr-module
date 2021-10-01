@@ -43,6 +43,9 @@
 
 namespace ns3 {
 
+class EpcTft;
+class EpsBearer;
+class NrPointToPointEpcHelper;
 class NrUeNetDevice;
 
 
@@ -53,6 +56,7 @@ class NrSlProseHelper : public Object
  * \brief Class to help in the configuration of the Proximity Service (ProSe)
  *        functionalities
  */
+
 public:
   /**
    * \brief Constructor
@@ -68,6 +72,12 @@ public:
    * \returns The TypeId
    */
   static TypeId GetTypeId (void);
+  /**
+   * \brief Set EPC helper
+   *
+   * \param epcHelper Ptr of type NrPointToPointEpcHelper
+   */
+  void SetEpcHelper (const Ptr<NrPointToPointEpcHelper> &epcHelper);
   /**
    * \brief Prepare UE for ProSe
    *
@@ -122,6 +132,40 @@ public:
    */
   void EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp);
 
+  /**
+   * \brief Establish a 5G ProSe L3 UE-to-Network (U2N) relay connection between
+   *        two UEs (a remote UE and a relay UE)
+   *
+   * This method schedules the creation of the corresponding direct link instances
+   * in both UEs participating in the U2N relay connection (Remote UE is the
+   * initiating UE of the direct link and relay UE is the target UE). Then, the
+   * ProSe layer configures the direct link instances and starts the establishment
+   * procedure in the remote UE.
+   *
+   * \param t The time at which the L3 U2N connection procedure should start
+   * \param remoteUe The remote UE of the connection
+   * \param remoteUeIp The IPv4 address used by the remote UE
+   * \param relayUE The relay UE
+   * \param relayUeIp The IPv4 address used by the relay UE
+   */
+  void EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp, Ptr<NetDevice> relayUe, Ipv4Address relayUeIp);
+
+  /**
+   * \brief Install configuration on the UEs that will act as L3 UE-to-Network (U2N)
+   *        relay UEs
+   *
+   *  This method activates the EPS bearer to be used for relaying traffic on
+   *  each relay UE device, and internally sets the pointer to the EpcHelper in
+   *  the ProSe layer. The EpcHelper will be used by the ProSe layer to configure
+   *  the data path in the EpcPgwApplication when a remote UE successfully connects
+   *  to the relay UE
+   *
+   * \param ueDevices the devices in which the L3 U2N relay configuration will be installed
+   * \param bearer the EPS bearer to be used for relaying traffic
+   * \param tft the traffic flow template to be used for relaying traffic
+   */
+  void ConfigureL3UeToNetworkRelay (NetDeviceContainer ueDevices, EpsBearer bearer, Ptr<EpcTft> tft);
+
 protected:
   /**
    * \brief \c DoDispose method inherited from \c Object
@@ -143,6 +187,8 @@ private:
   * \param NrUeDev The Ptr to NR UE NetDevice
   */
   void PrepareSingleUeForUnicast (Ptr<NrUeNetDevice> nrUeDev);
+
+  Ptr<NrPointToPointEpcHelper> m_epcHelper; //!< pointer to the EPC helper
 };
 
 }

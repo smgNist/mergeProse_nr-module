@@ -48,6 +48,7 @@
 
 #include <ns3/pointer.h>
 #include <ns3/simulator.h>
+#include <ns3/nr-point-to-point-epc-helper.h>
 
 namespace ns3 {
 
@@ -85,6 +86,13 @@ NrSlProseHelper::DoDispose (void)
   Object::DoDispose ();
 }
 
+void
+NrSlProseHelper::SetEpcHelper (const Ptr<NrPointToPointEpcHelper> &epcHelper)
+{
+  NS_LOG_FUNCTION (this);
+  m_epcHelper = epcHelper;
+
+}
 
 void
 NrSlProseHelper::PrepareUesForProse (NetDeviceContainer c)
@@ -159,10 +167,10 @@ NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4
   NS_LOG_INFO ("initUeL2Id " << initUeL2Id << " trgtUeL2Id " << trgtUeL2Id);
 
   //Initiating UE
-  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, initUeProse, initUeL2Id, initUeIp, trgtUeL2Id, true);
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, initUeProse, initUeL2Id, initUeIp, trgtUeL2Id, true, false);
 
   //Target UE
-  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp, initUeL2Id, false);
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp, initUeL2Id, false, false);
 
 }
 
@@ -184,13 +192,59 @@ NrSlProseHelper::EstablishIdealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv
   uint32_t trgtUeL2Id = trgtUeRrc->GetSourceL2Id ();
 
 
-  initUeProse->AddDirectLinkConnection (initUeL2Id, initUeIp, trgtUeL2Id, true);
-  trgtUeProse->AddDirectLinkConnection (trgtUeL2Id, trgtUeIp, initUeL2Id, false);
+  initUeProse->AddDirectLinkConnection (initUeL2Id, initUeIp, trgtUeL2Id, true, false);
+  trgtUeProse->AddDirectLinkConnection (trgtUeL2Id, trgtUeIp, initUeL2Id, false, false);
   //Now we connect the appropriated  SAPs of both NrSlUeProseDirLink to each other
   //TODO!
 
 }
 
+void
+NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp, Ptr<NetDevice> relayUe, Ipv4Address relayUeIp)
+{
+  NS_LOG_FUNCTION (this);
+  Ptr<NrUeNetDevice> remoteUeNetDev = remoteUe->GetObject <NrUeNetDevice>();
+  Ptr<NrUeNetDevice> relayUeNetDev = relayUe->GetObject <NrUeNetDevice>();
+  Ptr<NrSlUeProse> remoteUeProse = remoteUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  Ptr<NrSlUeProse> relayUeProse = relayUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  Ptr<LteUeRrc> remoteUeRrc = remoteUeNetDev->GetRrc ();
+  Ptr<LteUeRrc> relayUeRrc = relayUeNetDev->GetRrc ();
+
+  remoteUeProse->SetImsi (remoteUeRrc->GetImsi ());
+  relayUeProse->SetImsi (relayUeRrc->GetImsi ());
+
+  uint32_t remoteUeL2Id = remoteUeRrc->GetSourceL2Id ();
+  uint32_t relayUeL2Id = relayUeRrc->GetSourceL2Id ();
+
+  NS_LOG_DEBUG ("remote UE L2Id: " << remoteUeL2Id << " relay UE L2Id: " << relayUeL2Id);
+
+  //Remote UE (Initiating UE)
+  Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection, remoteUeProse, remoteUeL2Id, remoteUeIp, relayUeL2Id, true, true);
+
+  //Relay UE (Target UE)
+  Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection, relayUeProse, relayUeL2Id, relayUeIp, remoteUeL2Id, false, true);
+
+}
+
+void
+NrSlProseHelper::ConfigureL3UeToNetworkRelay (NetDeviceContainer relayUeDevices, EpsBearer bearer, Ptr<EpcTft> tft)
+{
+  NS_LOG_FUNCTION (this);
+  NS_ASSERT_MSG (m_epcHelper != 0, "dedicated EPS bearers cannot be set up when the EPC is not used");
+
+  for (NetDeviceContainer::Iterator devIt = relayUeDevices.Begin (); devIt != relayUeDevices.End (); ++devIt)
+    {
+      //Activate Eps dedicated bearer for relaying
+      uint64_t imsi = (*devIt)->GetObject<NrUeNetDevice> ()->GetImsi ();
+      uint8_t relayDrbId = m_epcHelper->ActivateEpsBearer (*devIt, imsi, tft, bearer);
+      Ptr<NrSlUeProse> prose = (*devIt)->GetObject<NrUeNetDevice> ()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+      //Store bearer ID
+      prose->SetU2nRelayDrbId (relayDrbId);
+      //Set EPC Helper pointer on the ProSe layer, which is used to configure
+      //data path in the EpcPgwApplication when a remote UE successfully connects to this relay UE)
+      prose->SetEpcHelper (m_epcHelper);
+    }
+}
 
 
 } // namespace ns3
