@@ -167,10 +167,10 @@ NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4
   NS_LOG_INFO ("initUeL2Id " << initUeL2Id << " trgtUeL2Id " << trgtUeL2Id);
 
   //Initiating UE
-  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, initUeProse, initUeL2Id, initUeIp, trgtUeL2Id, true, false);
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, initUeProse, initUeL2Id, initUeIp, trgtUeL2Id, true, false, 0);
 
   //Target UE
-  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp, initUeL2Id, false, false);
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp, initUeL2Id, false, false, 0);
 
 }
 
@@ -192,17 +192,20 @@ NrSlProseHelper::EstablishIdealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv
   uint32_t trgtUeL2Id = trgtUeRrc->GetSourceL2Id ();
 
 
-  initUeProse->AddDirectLinkConnection (initUeL2Id, initUeIp, trgtUeL2Id, true, false);
-  trgtUeProse->AddDirectLinkConnection (trgtUeL2Id, trgtUeIp, initUeL2Id, false, false);
+  initUeProse->AddDirectLinkConnection (initUeL2Id, initUeIp, trgtUeL2Id, true, false, 0);
+  trgtUeProse->AddDirectLinkConnection (trgtUeL2Id, trgtUeIp, initUeL2Id, false, false, 0);
   //Now we connect the appropriated  SAPs of both NrSlUeProseDirLink to each other
   //TODO!
 
 }
 
 void
-NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp, Ptr<NetDevice> relayUe, Ipv4Address relayUeIp)
+NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp,
+                                                        Ptr<NetDevice> relayUe, Ipv4Address relayUeIp,
+                                                        uint32_t relayServiceCode)
 {
   NS_LOG_FUNCTION (this);
+
   Ptr<NrUeNetDevice> remoteUeNetDev = remoteUe->GetObject <NrUeNetDevice>();
   Ptr<NrUeNetDevice> relayUeNetDev = relayUe->GetObject <NrUeNetDevice>();
   Ptr<NrSlUeProse> remoteUeProse = remoteUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
@@ -219,27 +222,39 @@ NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> r
   NS_LOG_DEBUG ("remote UE L2Id: " << remoteUeL2Id << " relay UE L2Id: " << relayUeL2Id);
 
   //Remote UE (Initiating UE)
-  Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection, remoteUeProse, remoteUeL2Id, remoteUeIp, relayUeL2Id, true, true);
+  Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection,
+                       remoteUeProse, remoteUeL2Id, remoteUeIp, relayUeL2Id,
+                       true, true, relayServiceCode);
 
   //Relay UE (Target UE)
-  Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection, relayUeProse, relayUeL2Id, relayUeIp, remoteUeL2Id, false, true);
+  Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection,
+                       relayUeProse, relayUeL2Id, relayUeIp, remoteUeL2Id,
+                       false, true, relayServiceCode);
 
 }
 
 void
-NrSlProseHelper::ConfigureL3UeToNetworkRelay (NetDeviceContainer relayUeDevices, EpsBearer bearer, Ptr<EpcTft> tft)
+NrSlProseHelper::ConfigureL3UeToNetworkRelay (NetDeviceContainer relayUeDevices,
+                                              std::set<uint32_t> relayServiceCodes,
+                                              EpsBearer bearer, Ptr<EpcTft> tft)
 {
   NS_LOG_FUNCTION (this);
   NS_ASSERT_MSG (m_epcHelper != 0, "dedicated EPS bearers cannot be set up when the EPC is not used");
 
   for (NetDeviceContainer::Iterator devIt = relayUeDevices.Begin (); devIt != relayUeDevices.End (); ++devIt)
     {
-      //Activate Eps dedicated bearer for relaying
       uint64_t imsi = (*devIt)->GetObject<NrUeNetDevice> ()->GetImsi ();
-      uint8_t relayDrbId = m_epcHelper->ActivateEpsBearer (*devIt, imsi, tft, bearer);
       Ptr<NrSlUeProse> prose = (*devIt)->GetObject<NrUeNetDevice> ()->GetSlUeService ()->GetObject <NrSlUeProse> ();
-      //Store bearer ID
-      prose->SetU2nRelayDrbId (relayDrbId);
+
+      //Set the relay service codes of the services the relay UE provides and the associated configuration
+      for ( auto it = relayServiceCodes.begin (); it != relayServiceCodes.end (); ++it )
+        {
+          //Activate Eps dedicated bearer for relaying
+          uint8_t relayDrbId = m_epcHelper->ActivateEpsBearer (*devIt, imsi, tft, bearer);
+          NrSlUeProse::NrSlL3U2nServiceConfiguration config;
+          config.relayDrbId = relayDrbId;
+          prose->AddU2nRelayServiceConfiguration (*it, config);
+        }
       //Set EPC Helper pointer on the ProSe layer, which is used to configure
       //data path in the EpcPgwApplication when a remote UE successfully connects to this relay UE)
       prose->SetEpcHelper (m_epcHelper);

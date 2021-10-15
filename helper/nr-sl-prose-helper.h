@@ -147,8 +147,11 @@ public:
    * \param remoteUeIp The IPv4 address used by the remote UE
    * \param relayUE The relay UE
    * \param relayUeIp The IPv4 address used by the relay UE
+   * \param relayServiceCode the relay service code associated to this direct link
    */
-  void EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp, Ptr<NetDevice> relayUe, Ipv4Address relayUeIp);
+  void EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp,
+                                              Ptr<NetDevice> relayUe, Ipv4Address relayUeIp,
+                                              uint32_t relayServiceCode);
 
   /**
    * \brief Install configuration on the UEs that will act as L3 UE-to-Network (U2N)
@@ -161,10 +164,13 @@ public:
    *  to the relay UE
    *
    * \param ueDevices the devices in which the L3 U2N relay configuration will be installed
+   * \param relayServiceCodes the relay service codes to which the configuration will be associated
    * \param bearer the EPS bearer to be used for relaying traffic
    * \param tft the traffic flow template to be used for relaying traffic
    */
-  void ConfigureL3UeToNetworkRelay (NetDeviceContainer ueDevices, EpsBearer bearer, Ptr<EpcTft> tft);
+  void ConfigureL3UeToNetworkRelay (NetDeviceContainer ueDevices,
+                                    std::set<uint32_t> relayServiceCodes,
+                                    EpsBearer bearer, Ptr<EpcTft> tft);
 
 protected:
   /**

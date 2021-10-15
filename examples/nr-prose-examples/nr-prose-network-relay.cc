@@ -723,6 +723,11 @@ main (int argc, char *argv[])
   nrSlProseHelper->PrepareUesForUnicast (relayUeNetDev);
   nrSlProseHelper->PrepareUesForUnicast (slUeNetDev);
 
+  //Configure the value of timer Timer T5080 (Prose Direct Link Establishment Request Retransmission)
+  //to a lower value than the standard (8.0 s) to speed connection in shorter simulation time
+  Config::SetDefault ("ns3::NrSlUeProseDirectLink::T5080", TimeValue (Seconds (2.0)));
+
+
   /*
    * Setup the start of the ProSe direct link establishment procedure
    * (with the 'Real' protocol, PC5-S messages are exchanged over the SL)
@@ -748,6 +753,26 @@ main (int argc, char *argv[])
 
 
   /******************** L3 U2N Relay configuration ***************************/
+  //Provision L3 U2N configuration on the relay UEs
+
+  //-Configure relay service codes
+  // Only one relay service per relay UE can currently be provided
+  uint32_t relayServiceCode = 5;
+  std::set<uint32_t> providedRelaySCs;
+  providedRelaySCs.insert (relayServiceCode);
+
+  //-Configure the UL data radio bearer that the relay UE will use for U2N relaying traffic
+  Ptr<EpcTft> tftRelay = Create<EpcTft> ();
+  EpcTft::PacketFilter pfRelay;
+  tftRelay->Add (pfRelay);
+  enum EpsBearer::Qci qciRelay;
+  qciRelay = EpsBearer::GBR_CONV_VOICE;
+  EpsBearer bearerRelay (qciRelay);
+
+  //Apply the configuration on the devices acting as relay UEs
+  nrSlProseHelper->ConfigureL3UeToNetworkRelay (relayUeNetDev, providedRelaySCs, bearerRelay, tftRelay);
+
+  //Configure direct link connection between remote UEs and relay UEs
   NS_LOG_INFO ("Configuring remote UE - relay UE connection..." );
   for (uint32_t i = 0; i < slUeNodes.GetN (); ++i)
     {
@@ -755,21 +780,13 @@ main (int argc, char *argv[])
         {
           nrSlProseHelper->EstablishL3UeToNetworkRelayConnection (startRelayConnTime,
                                                                   slUeNetDev.Get (i), slIpv4AddressVector [i], // Remote UE
-                                                                  relayUeNetDev.Get (j), relaysIpv4AddressVector [j]); // Relay UE
+                                                                  relayUeNetDev.Get (j), relaysIpv4AddressVector [j], // Relay UE
+                                                                  relayServiceCode);
 
-          NS_LOG_INFO ("Remote UE nodeId " << i << " Relay UE nodeId " << j );
-
+          NS_LOG_INFO ("Remote UE nodeId " << i << " Relay UE nodeId " << j);
         }
     }
 
-  //Configure the UL data radio bearer that will be use for U2N relaying traffic
-  Ptr<EpcTft> tftRelay = Create<EpcTft> ();
-  EpcTft::PacketFilter pfRelay;
-  tftRelay->Add (pfRelay);
-  enum EpsBearer::Qci qciRelay;
-  qciRelay = EpsBearer::GBR_CONV_VOICE;
-  EpsBearer bearerRelay (qciRelay);
-  nrSlProseHelper->ConfigureL3UeToNetworkRelay (relayUeNetDev, bearerRelay, tftRelay);
 
   /******************** END L3 U2N Relay configuration ***********************/
 
