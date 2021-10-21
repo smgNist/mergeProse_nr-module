@@ -133,6 +133,10 @@ $ ./waf --run "nr-prose-network-relay--Help"
 #include "ns3/point-to-point-module.h"
 #include "ns3/ideal-beamforming-algorithm.h"
 #include "ns3/antenna-module.h"
+#include <ns3/nr-sl-pc5-signalling-header.h>
+#include <ns3/nr-sl-ue-prose.h>
+#include <ns3/epc-ue-nas.h>
+
 
 #include <sqlite3.h>
 //Dependency of these nr-v2x-examples classes for SL statistics
@@ -179,6 +183,59 @@ UePacketTraceDb (UeToUePktTxRxOutputStats *stats, Ptr<Node> node, const Address 
 /************************END Methods for tracing SL **************************/
 
 
+/*
+ * Trace sink function for logging transmission and reception of PC5 signaling (PC5-S) messages
+ */
+void
+TraceSinkPC5SignallingPacketTrace (Ptr<OutputStreamWrapper> stream, uint32_t srcL2Id, uint32_t dstL2Id, bool isTx, Ptr<Packet> p)
+{
+  NrSlPc5SignallingMessageType pc5smt;
+  p->PeekHeader (pc5smt);
+  *stream->GetStream () << Simulator::Now ().GetSeconds ();
+  if (isTx)
+    {
+      *stream->GetStream () << "\t" << "TX";
+    }
+  else
+    {
+      *stream->GetStream () << "\t" << "RX";
+    }
+  *stream->GetStream () << "\t" << srcL2Id << "\t" << dstL2Id << "\t" << pc5smt.GetMessageName ();
+  *stream->GetStream () << std::endl;
+}
+
+std::map<std::string, uint32_t> g_relayNasPacketCounter;
+
+
+/*
+ * Trace sink function for logging reception of data packets in the NAS layer by UE(s) acting as relay UE
+ */
+void
+TraceSinkRelayNasRxPacketTrace (Ptr<OutputStreamWrapper> stream,
+                                Ipv4Address nodeIp, Ipv4Address srcIp, Ipv4Address dstIp,
+                                std::string srcLink, std::string dstLink, Ptr<Packet> p)
+{
+  *stream->GetStream () << Simulator::Now ().GetSeconds ()
+                        << "\t" << nodeIp
+                        << "\t" << srcIp
+                        << "\t" << dstIp
+                        << "\t" << srcLink
+                        << "\t" << dstLink
+                        << std::endl;
+  std::ostringstream  oss;
+  oss << nodeIp << "      " << srcIp << "->" << dstIp << "      " << srcLink << "->" << dstLink;
+  std::string mapKey = oss.str ();
+  auto it = g_relayNasPacketCounter.find (mapKey);
+  if (it == g_relayNasPacketCounter.end ())
+    {
+      g_relayNasPacketCounter.insert (std::pair < std::string, uint32_t> (mapKey, 1));
+    }
+  else
+    {
+      it->second += 1;
+    }
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -207,7 +264,7 @@ main (int argc, char *argv[])
   uint32_t packetSizeDlUl = 500; //bytes
   uint32_t lambdaDl = 60; // packets per second
   uint32_t lambdaUl = 50; // packets per second
-  double inNetTrafficStartTime = 3.0; //seconds
+  double inNetTrafficStartTime = 5.0; //seconds
 
 
   //Sidelink configuration
@@ -221,7 +278,7 @@ main (int argc, char *argv[])
   uint32_t packetSizeSl = 200; //bytes
   double dataRateSl = 16; //16 kilobits per second
   bool bidirectionalSlTraffic = true;
-  Time slTrafficStartTime = Seconds (3.0); //Time to start the traffic in the application layer
+  Time slTrafficStartTime = Seconds (5.0); //Time to start the traffic in the application layer
 
   //U2N Relay configuration
   uint16_t relayUeNum = 1;
@@ -1043,6 +1100,40 @@ main (int argc, char *argv[])
   /******************** End SL application configuration ************************/
 
 
+  /******************* PC5-S messages tracing ********************************/
+
+  AsciiTraceHelper ascii;
+  Ptr<OutputStreamWrapper> Pc5SignallingPacketTraceStream = ascii.CreateFileStream ("NrSlPc5SignallingPacketTrace.txt");
+  *Pc5SignallingPacketTraceStream->GetStream () << "time(s)\tTX/RX\tsrcL2Id\tdstL2Id\tmsgType" << std::endl;
+  for (uint32_t i = 0; i < slUeNetDev.GetN (); ++i)
+    {
+      Ptr<NrSlUeProse> prose = slUeNetDev.Get (i)->GetObject<NrUeNetDevice> ()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+      prose->TraceConnectWithoutContext ("PC5SignallingPacketTrace",
+                                         MakeBoundCallback (&TraceSinkPC5SignallingPacketTrace,
+                                                            Pc5SignallingPacketTraceStream));
+    }
+  for (uint32_t i = 0; i < relayUeNetDev.GetN (); ++i)
+    {
+      Ptr<NrSlUeProse> prose = relayUeNetDev.Get (i)->GetObject<NrUeNetDevice> ()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+      prose->TraceConnectWithoutContext ("PC5SignallingPacketTrace",
+                                         MakeBoundCallback (&TraceSinkPC5SignallingPacketTrace,
+                                                            Pc5SignallingPacketTraceStream));
+    }
+  /******************* END PC5-S messages tracing *****************************/
+
+  Ptr<OutputStreamWrapper> RelayNasRxPacketTraceStream = ascii.CreateFileStream ("NrSlRelayNasRxPacketTrace.txt");
+  *RelayNasRxPacketTraceStream->GetStream () << "time(s)\tnodeIp\tsrcIp\tdstIp\tsrcLink\tdstLink" << std::endl;
+  for (uint32_t i = 0; i < relayUeNetDev.GetN (); ++i)
+    {
+      Ptr<EpcUeNas> epcUeNas = relayUeNetDev.Get (i)->GetObject<NrUeNetDevice> ()->GetNas ();
+
+      epcUeNas->TraceConnectWithoutContext ("NrSlRelayRxPacketTrace",
+                                            MakeBoundCallback (&TraceSinkRelayNasRxPacketTrace,
+                                                               RelayNasRxPacketTraceStream));
+    }
+
+
+
   /************ SL traces database setup *************************************/
 
   std::string exampleName = simTag + "-" + "nr-prose-network-relay";
@@ -1153,25 +1244,23 @@ main (int argc, char *argv[])
           appDuration = simTime - inNetTrafficStartTime;
         }
 
-      outFile << "Flow " << i->first << " (" << t.sourceAddress << ":" << t.sourcePort << " -> " << t.destinationAddress << ":" << t.destinationPort << ") " << protoStream.str () << "\n";
-      outFile << "  Tx Packets: " << i->second.txPackets << "\n";
-      outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
-      outFile << "  TxOffered:  " << i->second.txBytes * 8.0 / appDuration / 1000 / 1000  << " Mbps\n";
-      outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
-      outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
+      outFile << "  Flow " << i->first << " (" << t.sourceAddress << " -> " << t.destinationAddress << ") " << protoStream.str () << "\n";
+      outFile << "    Tx Packets: " << i->second.txPackets << "\n";
+      outFile << "    Tx Bytes:   " << i->second.txBytes << "\n";
+      outFile << "    TxOffered:  " << i->second.txBytes * 8.0 / appDuration / 1000 / 1000  << " Mbps\n";
+      outFile << "    Rx Packets: " << i->second.rxPackets << "\n";
+      outFile << "    Rx Bytes:   " << i->second.rxBytes << "\n";
       if (i->second.rxPackets > 0)
         {
-
-
-          outFile << "  Throughput: " << i->second.rxBytes * 8.0 / appDuration / 1000 / 1000  << " Mbps\n";
-          outFile << "  Mean delay:  " << 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets << " ms\n";
-          outFile << "  Mean jitter:  " << 1000 * i->second.jitterSum.GetSeconds () / i->second.rxPackets  << " ms\n";
+          outFile << "    Throughput: " << i->second.rxBytes * 8.0 / appDuration / 1000 / 1000  << " Mbps\n";
+          outFile << "    Mean delay:  " << 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets << " ms\n";
+          outFile << "    Mean jitter:  " << 1000 * i->second.jitterSum.GetSeconds () / i->second.rxPackets  << " ms\n";
         }
       else
         {
-          outFile << "  Throughput:  0 Mbps\n";
-          outFile << "  Mean delay:  0 ms\n";
-          outFile << "  Mean jitter: 0 ms\n";
+          outFile << "    Throughput:  0 Mbps\n";
+          outFile << "    Mean delay:  0 ms\n";
+          outFile << "    Mean jitter: 0 ms\n";
         }
     }
   outFile.close ();
@@ -1181,6 +1270,12 @@ main (int argc, char *argv[])
   if (f.is_open ())
     {
       std::cout << f.rdbuf ();
+    }
+  std::cout << "Number of packets relayed by the L3 UE-to-Network relays:"  << std::endl;
+  std::cout << "relayIp      srcIp->dstIp      srcLink->dstLink\t\tnPackets"  << std::endl;
+  for (auto it = g_relayNasPacketCounter.begin (); it != g_relayNasPacketCounter.end (); ++it)
+    {
+      std::cout << it->first << "\t\t" << it->second << std::endl;
     }
 
   Simulator::Destroy ();

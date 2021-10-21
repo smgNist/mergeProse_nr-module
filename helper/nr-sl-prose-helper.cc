@@ -161,8 +161,14 @@ NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4
   Ptr<LteUeRrc> initUeRrc = initUeNetDev->GetRrc ();
   Ptr<LteUeRrc> trgtUeRrc = trgtUeNetDev->GetRrc ();
 
+  initUeProse->SetImsi (initUeRrc->GetImsi ());
+  trgtUeProse->SetImsi (trgtUeRrc->GetImsi ());
+
   uint32_t initUeL2Id = initUeRrc->GetSourceL2Id ();
   uint32_t trgtUeL2Id = trgtUeRrc->GetSourceL2Id ();
+
+  initUeProse->SetL2Id (initUeL2Id);
+  trgtUeProse->SetL2Id (trgtUeL2Id);
 
   NS_LOG_INFO ("initUeL2Id " << initUeL2Id << " trgtUeL2Id " << trgtUeL2Id);
 
@@ -218,6 +224,9 @@ NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> r
 
   uint32_t remoteUeL2Id = remoteUeRrc->GetSourceL2Id ();
   uint32_t relayUeL2Id = relayUeRrc->GetSourceL2Id ();
+
+  remoteUeProse->SetL2Id (remoteUeL2Id);
+  relayUeProse->SetL2Id (relayUeL2Id);
 
   NS_LOG_DEBUG ("remote UE L2Id: " << remoteUeL2Id << " relay UE L2Id: " << relayUeL2Id);
 
