@@ -153,6 +153,7 @@ $ gnuplot nr-prose-relay-on-off-topology.plt
 #include "../nr-v2x-examples/ue-phy-pscch-rx-output-stats.h"
 #include "../nr-v2x-examples/ue-phy-pssch-rx-output-stats.h"
 #include "../nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.h"
+#include "../nr-v2x-examples/ue-rlc-rx-output-stats.h"
 
 using namespace ns3;
 
@@ -175,6 +176,10 @@ void NotifySlPscchRx (UePhyPscchRxOutputStats *pscchStats, const SlRxCtrlPacketT
 void NotifySlPsschRx (UePhyPsschRxOutputStats *psschStats, const SlRxDataPacketTraceParams psschStatsParams)
 {
   psschStats->Save (psschStatsParams);
+}
+void NotifySlRlcPduRx (UeRlcRxOutputStats *stats, uint64_t imsi, uint16_t rnti, uint16_t txRnti, uint8_t lcid, uint32_t rxPduSize, double delay)
+{
+  stats->Save (imsi, rnti, txRnti, lcid, rxPduSize, delay);
 }
 void
 PacketTraceDb (UeToUePktTxRxOutputStats *stats, Ptr<Node> node, const Address &localAddrs,
@@ -423,6 +428,7 @@ static const std::vector<netsimulyzer::Color3Value> g_colors
   netsimulyzer::DARK_PURPLE_VALUE,
   netsimulyzer::DARK_YELLOW_VALUE,
   netsimulyzer::DARK_PINK_VALUE,
+  netsimulyzer::BLACK,
   netsimulyzer::RED_VALUE,
   netsimulyzer::GREEN_VALUE,
   netsimulyzer::BLUE_VALUE,
@@ -553,8 +559,8 @@ main (int argc, char *argv[])
   double ueTxPower = 23; //dBm
 
   //In-network devices configuration
-  uint16_t numerologyCc0Bwp0 = 3; // BWP0 will be used for the in-network
-  double gNBtotalTxPower = 8; // dBm
+  uint16_t numerologyCc0Bwp0 = 2; // BWP0 will be used for the in-network
+  double gNBtotalTxPower = 32; // dBm
   bool cellScan = false;  // Beamforming method.
   double beamSearchAngleStep = 10.0; // Beamforming parameter.
 
@@ -584,7 +590,7 @@ main (int argc, char *argv[])
   std::string outputDir = "./";
   std::string exampleName = "nr-prose-relay-on-off";
 
-  Time simTime = Seconds (15.0); // seconds
+  Time simTime = Seconds (40.0); // seconds
 
   CommandLine cmd;
   cmd.AddValue ("simTime", "Total duration of the simulation (s)", simTime);
@@ -598,12 +604,10 @@ main (int argc, char *argv[])
   cmd.Parse (argc, argv);
 
 
-
-
   //Setup large enough buffer size to avoid overflow
   Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
-
-
+  //Setup -t-Reordering to 0ms to avoid RLC reordering delay
+  Config::SetDefault ("ns3::LteRlcUm::ReorderingTimer", TimeValue (MilliSeconds (0)));
 
   // create gNBs and in-network UEs, configure positions
   NodeContainer gNbNodes;
@@ -1129,7 +1133,6 @@ main (int argc, char *argv[])
   /******************** END L3 U2N Relay configuration ***********************/
 
 
-  /************* NetSimulyzer ****/
 #ifdef HAS_NETSIMULYZER
 
   std::string netSimOutputFilename = exampleName + "-netsimulyzer.json";
@@ -1143,7 +1146,7 @@ main (int argc, char *argv[])
 
   nodeHelper.Set ("Model", netsimulyzer::models::SMARTPHONE_VALUE);
   nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{
-    netsimulyzer::BLUE
+    netsimulyzer::GREEN
   });
   for (uint32_t i = 0; i < inNetUeNodes.GetN (); ++i)
     {
@@ -1151,7 +1154,7 @@ main (int argc, char *argv[])
       nodeHelper.Install (inNetUeNodes.Get (i));
     }
   nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{
-    netsimulyzer::GREEN
+    netsimulyzer::BLUE
   });
   for (uint32_t i = 0; i < relayUeNodes.GetN (); ++i)
     {
@@ -1159,7 +1162,7 @@ main (int argc, char *argv[])
       nodeHelper.Install (relayUeNodes.Get (i));
     }
   nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{
-    netsimulyzer::YELLOW
+    netsimulyzer::PURPLE
   });
   for (uint32_t i = 0; i < remoteUeNodes.GetN (); ++i)
     {
@@ -1233,7 +1236,6 @@ main (int argc, char *argv[])
 
 #endif
 
-  /************* END NetSimulyzer ****/
 
   /************************ Application configuration ************************/
   /* Client app: OnOff application configured to generate CBR traffic when in
@@ -1263,12 +1265,8 @@ main (int argc, char *argv[])
   //std::string offDistStr = "ns3::ConstantRandomVariable[Constant=0.0]";
   std::string offDistStr = "ns3::ConstantRandomVariable[Constant=2.0]";
 
-
   Config::SetDefault ("ns3::OnOffApplication::EnableSeqTsSizeHeader", BooleanValue (true));
   Config::SetDefault ("ns3::PacketSink::EnableSeqTsSizeHeader", BooleanValue (true));
-
-
-
 
   //InNetwork UEs
   std::cout << "InNetwork UEs traffic flows: " << std::endl;
@@ -1286,7 +1284,7 @@ main (int argc, char *argv[])
       Time dlAppStartTime = timeStartTraffic + Seconds (startTimeRnd->GetValue ());
       dlClientApp.Start (dlAppStartTime);
       clientApps.Add (dlClientApp);
-      std::cout << " DL: " << remoteHostAddr << " -> " << inNetIpv4AddressVector [inIdx] << ":" << dlPort <<
+      std::cout << " DL: " << remoteHostAddr << " -> " << inNetIpv4AddressVector [inIdx] <<
         " start time: " << dlAppStartTime.GetSeconds ()  << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
 
 #ifdef HAS_NETSIMULYZER
@@ -1358,7 +1356,7 @@ main (int argc, char *argv[])
       Time ulAppStartTime = timeStartTraffic + Seconds (startTimeRnd->GetValue ());
       ulClientApp.Start (ulAppStartTime);
       clientApps.Add (ulClientApp);
-      std::cout << " UL: " << inNetIpv4AddressVector [inIdx] << " -> " << remoteHostAddr  << ":" << ulPort <<
+      std::cout << " UL: " << inNetIpv4AddressVector [inIdx] << " -> " << remoteHostAddr <<
         " start time: " << ulAppStartTime.GetSeconds ()  << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
 
 #ifdef HAS_NETSIMULYZER
@@ -1374,7 +1372,6 @@ main (int argc, char *argv[])
       ulClientApp.Get (0)->TraceConnect ("TxWithSeqTsSize", "tx", MakeBoundCallback (&PacketTraceNetSimulyzer, ulTxTput));
       ulUeTputCollection->Add (ulTxTput->GetSeries ());
 #endif
-
 
       //-Server on Remtoe Host
       PacketSinkHelper ulPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), ulPort));
@@ -1435,7 +1432,7 @@ main (int argc, char *argv[])
       Time dlAppStartTime = timeStartTraffic + Seconds (startTimeRnd->GetValue ());
       dlClientApp.Start (dlAppStartTime);
       clientApps.Add (dlClientApp);
-      std::cout << " DL: " << remoteHostAddr << " -> " << remotesIpv4AddressVector [rmIdx] << ":" << dlPort <<
+      std::cout << " DL: " << remoteHostAddr << " -> " << remotesIpv4AddressVector [rmIdx] <<
         " start time: " << dlAppStartTime.GetSeconds ()  << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
 
 #ifdef HAS_NETSIMULYZER
@@ -1457,7 +1454,6 @@ main (int argc, char *argv[])
       PacketSinkHelper dlpacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), dlPort));
       ApplicationContainer dlSeverApp = dlpacketSinkHelper.Install (remoteUeNodes.Get (rmIdx));
       serverApps.Add (dlSeverApp);
-
 
 #ifdef HAS_NETSIMULYZER
       auto dlRxTput = CreateObject<netsimulyzer::ThroughputSink> (orchestrator, "Throughput - Remote UE - Rx - DL - Node " + std::to_string (nodeId));
@@ -1507,7 +1503,7 @@ main (int argc, char *argv[])
       Time ulAppStartTime = timeStartTraffic + Seconds (startTimeRnd->GetValue ());
       ulClientApp.Start (ulAppStartTime);
       clientApps.Add (ulClientApp);
-      std::cout << " UL: " << remotesIpv4AddressVector [rmIdx] << " -> " << remoteHostAddr  << ":" << ulPort <<
+      std::cout << " UL: " << remotesIpv4AddressVector [rmIdx] << " -> " << remoteHostAddr <<
         " start time: " << ulAppStartTime.GetSeconds ()  << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
 
 #ifdef HAS_NETSIMULYZER
@@ -1585,7 +1581,7 @@ main (int argc, char *argv[])
           Time dlAppStartTime = timeStartTraffic + Seconds (startTimeRnd->GetValue ());
           dlClientApp.Start (dlAppStartTime);
           clientApps.Add (dlClientApp);
-          std::cout << " DL: " << remoteHostAddr << " -> " << relaysIpv4AddressVector [ryIdx] << ":" << dlPort <<
+          std::cout << " DL: " << remoteHostAddr << " -> " << relaysIpv4AddressVector [ryIdx] <<
             " start time: " << dlAppStartTime.GetSeconds ()  << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
 
 #ifdef HAS_NETSIMULYZER
@@ -1602,7 +1598,6 @@ main (int argc, char *argv[])
           dlClientApp.Get (0)->TraceConnect ("TxWithSeqTsSize", "tx", MakeBoundCallback (&PacketTraceNetSimulyzer, dlTxTput));
           dlUeTputCollection->Add (dlTxTput->GetSeries ());
 #endif
-
 
           //-Server in UE
           PacketSinkHelper dlpacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), dlPort));
@@ -1656,7 +1651,7 @@ main (int argc, char *argv[])
           Time ulAppStartTime = timeStartTraffic + Seconds (startTimeRnd->GetValue ());
           ulClientApp.Start (ulAppStartTime);
           clientApps.Add (ulClientApp);
-          std::cout << " UL: " << relaysIpv4AddressVector [ryIdx] << " -> " << remoteHostAddr  << ":" << ulPort <<
+          std::cout << " UL: " << relaysIpv4AddressVector [ryIdx] << " -> " << remoteHostAddr  <<
             " start time: " << ulAppStartTime.GetSeconds ()  << " s, end time: " << simTime.GetSeconds () << " s" << std::endl;
 
 #ifdef HAS_NETSIMULYZER
@@ -1702,7 +1697,6 @@ main (int argc, char *argv[])
                                                                              remoteHostAddr));
 #endif
 
-
           //UL bearer configuration
           Ptr<EpcTft> tftUl = Create<EpcTft> ();
           EpcTft::PacketFilter pfUl;
@@ -1747,6 +1741,10 @@ main (int argc, char *argv[])
   psschPhyStats.SetDb (&db, "psschRxUePhy");
   Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPsschTraceUe",
                                  MakeBoundCallback (&NotifySlPsschRx, &psschPhyStats));
+  UeRlcRxOutputStats ueRlcRxStats;
+  ueRlcRxStats.SetDb (&db, "rlcRx");
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/RxRlcPduWithTxRnti",
+                                 MakeBoundCallback (&NotifySlRlcPduRx, &ueRlcRxStats));
 
   UeToUePktTxRxOutputStats pktStats;
   pktStats.SetDb (&db, "pktTxRx");
@@ -1853,6 +1851,7 @@ main (int argc, char *argv[])
   psschStats.EmptyCache ();
   pscchPhyStats.EmptyCache ();
   psschPhyStats.EmptyCache ();
+  ueRlcRxStats.EmptyCache ();
 
   //Print per-flow statistics
   monitor->CheckForLostPackets ();
