@@ -581,11 +581,11 @@ main (int argc, char *argv[])
   //SlResourcePoolNr IE
   LteRrcSap::SlResourcePoolNr slResourcePoolNr;
   //get it from pool factory
-  Ptr<NrSlCommPreconfigResourcePoolFactory> ptrFactory = Create<NrSlCommPreconfigResourcePoolFactory> ();
+  Ptr<NrSlCommResourcePoolFactory> ptrFactory = Create<NrSlCommResourcePoolFactory> ();
   /*
    * Above pool factory is created to help the users of the simulator to create
    * a pool with valid default configuration. Please have a look at the
-   * constructor of NrSlCommPreconfigResourcePoolFactory class.
+   * constructor of NrSlCommResourcePoolFactory class.
    *
    * In the following, we show how one could change those default pool parameter
    * values as per the need.
