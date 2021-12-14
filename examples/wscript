@@ -60,3 +60,7 @@ def build(bld):
         linked_modules.append('netsimulyzer') 
     obj = bld.create_ns3_program('nr-prose-relay-on-off', linked_modules)
     obj.source = 'nr-prose-examples/nr-prose-relay-on-off.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc nr-v2x-examples/v2x-kpi.cc nr-v2x-examples/ue-rlc-rx-output-stats.cc'
+    linked_modules.append('psc')
+    linked_modules.append('sip')
+    obj = bld.create_ns3_program('nr-prose-relay-mcptt', linked_modules)
+    obj.source = 'nr-prose-examples/nr-prose-relay-mcptt.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc nr-v2x-examples/v2x-kpi.cc nr-v2x-examples/ue-rlc-rx-output-stats.cc'
