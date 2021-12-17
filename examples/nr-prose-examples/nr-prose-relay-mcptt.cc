@@ -345,6 +345,73 @@ NetSimulyzerMcpttFlow::RxTrace (Ptr<const Application> app, uint16_t callId, Ptr
     }
 }
 
+
+struct NetSimulyzerMcpttMetricsTracer
+{
+
+  void AccessTimeTrace (Time t, uint32_t userId, uint16_t callId, std::string result, Time latency);
+  void M2eLatencyTrace (Time t, uint32_t ssrc, uint64_t nodeId, uint16_t callId, Time latency);
+
+  std::map <uint32_t, Ptr<netsimulyzer::XYSeries> > m_m2eLatencyTimelineSeriesPerCall; ///< Set of M2E latency timeline curves, one per call
+  std::map <uint32_t, Ptr<netsimulyzer::EcdfSink> > m_m2eLatencyEcdfPerCall; ///< Set of M2E eCDFs, one per call
+  std::map <uint32_t, Ptr<netsimulyzer::XYSeries> > m_accessTimeTimelineSeriesPerCall; ///< Set of M2E timeline curves, one per call
+  std::map <uint32_t, Ptr<netsimulyzer::EcdfSink> > m_accessTimeEcdfPerCall; ///< Set of M2E eCDFs, one per call
+
+};
+/*
+ * Function to trace the MCPTT access time
+ */
+void
+NetSimulyzerMcpttMetricsTracer::AccessTimeTrace (Time t, uint32_t userId, uint16_t callId, std::string result, Time latency)
+{
+  std::map <uint32_t, Ptr<netsimulyzer::XYSeries> >::iterator it = m_accessTimeTimelineSeriesPerCall.find (callId);
+  if (it != m_accessTimeTimelineSeriesPerCall.end ())
+    {
+      it->second->Append (Simulator::Now ().GetSeconds (), latency.GetMilliSeconds ());
+    }
+  else
+    {
+      NS_FATAL_ERROR ("Call not found in tracer?!");
+    }
+  std::map <uint32_t, Ptr<netsimulyzer::EcdfSink> >::iterator it2 = m_accessTimeEcdfPerCall.find (callId);
+  if (it2 != m_accessTimeEcdfPerCall.end ())
+    {
+      it2->second->Append (latency.GetMilliSeconds ());
+    }
+  else
+    {
+      NS_FATAL_ERROR ("Call not found in tracer?!");
+    }
+}
+
+/*
+ * Function to trace the MCPTT mouth to ear latency
+ */
+void
+NetSimulyzerMcpttMetricsTracer::M2eLatencyTrace (Time t, uint32_t ssrc, uint64_t nodeId, uint16_t callId, Time latency)
+{
+  std::map <uint32_t, Ptr<netsimulyzer::XYSeries> >::iterator it = m_m2eLatencyTimelineSeriesPerCall.find (callId);
+  if (it != m_m2eLatencyTimelineSeriesPerCall.end ())
+    {
+      it->second->Append (Simulator::Now ().GetSeconds (), latency.GetMilliSeconds ());
+    }
+  else
+    {
+      NS_FATAL_ERROR ("Call not found in tracer?!");
+    }
+  std::map <uint32_t, Ptr<netsimulyzer::EcdfSink> >::iterator it2 = m_m2eLatencyEcdfPerCall.find (callId);
+  if (it2 != m_m2eLatencyEcdfPerCall.end ())
+    {
+      it2->second->Append (latency.GetMilliSeconds ());
+    }
+  else
+    {
+      NS_FATAL_ERROR ("Call not found in tracer?!");
+    }
+}
+
+
+
 /*
  * Structure containing the colors used for the netSimulyzer curves
  */
@@ -1096,10 +1163,11 @@ main (int argc, char *argv[])
 
   PointerValue xAxis;
   PointerValue yAxis;
+  uint16_t groupVectorsSize = 3; //size 3 because we ignore group 0
 
 
-  std::vector <std::map <uint32_t, NetSimulyzerMcpttFlow> > netSimulyzerFlowsPerGroup (3); //size 3 because we ignore group 0
-  std::vector <std::vector <uint32_t> > nodeIdsPerGroup (3); //size 3 because we ignore group 0
+  std::vector <std::map <uint32_t, NetSimulyzerMcpttFlow> > netSimulyzerFlowsPerGroup (groupVectorsSize);
+  std::vector <std::vector <uint32_t> > nodeIdsPerGroup (groupVectorsSize);
   for (uint32_t inIdx = 0; inIdx < inNetUeNodes.GetN (); ++inIdx)
     {
       nodeIdsPerGroup[1].emplace_back (inNetUeNodes.Get (inIdx)->GetId ());
@@ -1115,8 +1183,6 @@ main (int argc, char *argv[])
       nodeIdsPerGroup[2].emplace_back (remoteUeNodes.Get (rmIdx)->GetId ());
 
     }
-
-  uint16_t groupVectorsSize = 3; //size 3 because we ignore group 0
 
   //Create netsimulizer collections to be maintained per group
   std::vector <Ptr<netsimulyzer::SeriesCollection> > rxDelayEcdfCollectionsPerGroup (groupVectorsSize);
@@ -1273,7 +1339,6 @@ main (int argc, char *argv[])
             }
         }
     }
-
 #endif
 
   /************************ Application configuration ************************/
@@ -1580,18 +1645,107 @@ main (int argc, char *argv[])
 
   ipv4addressPerGroup.insert (std::pair < uint32_t, std::vector<Ipv4Address> > (groupId, groupTwoIpv4Addresses));
 
-  psc::McpttTraceHelper traceHelper;
-  traceHelper.EnableMsgTraces ();
-  traceHelper.EnableStateMachineTraces ();
-  traceHelper.EnableMouthToEarLatencyTrace ("mcptt-m2e-latency.txt");
-  traceHelper.EnableAccessTimeTrace ("mcptt-access-time.txt");
-
 
   allClientApps.Start (timeStartTraffic - Seconds (0.4));
   allClientApps.Stop (simTime - Seconds (1.0));
   serverApps.Start (timeStartTraffic - Seconds (0.6));
   serverApps.Stop (simTime - Seconds (1.0));
   /******************** End Application configuration ************************/
+
+  /**************** MCPTT metrics tracing ************************************/
+
+  Ptr<McpttTraceHelper> mcpttTraceHelper = CreateObject<McpttTraceHelper> ();
+  mcpttTraceHelper->EnableMsgTraces ();
+  mcpttTraceHelper->EnableStateMachineTraces ();
+  mcpttTraceHelper->EnableMouthToEarLatencyTrace ("mcptt-m2e-latency.txt");
+  mcpttTraceHelper->EnableAccessTimeTrace ("mcptt-access-time.txt");
+
+#ifdef HAS_NETSIMULYZER
+
+  //Collection to show eCDFs of MCPTT metrics per group together
+  auto accessTimeEcdfCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
+  accessTimeEcdfCollection->SetAttribute ("Name", StringValue ("Access time - eCDF - All calls"));
+  accessTimeEcdfCollection->GetAttribute ("XAxis", xAxis);
+  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
+  accessTimeEcdfCollection->GetAttribute ("YAxis", yAxis);
+  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Empirical CDF"));
+  accessTimeEcdfCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
+
+  auto m2eLatencyEcdfCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
+  m2eLatencyEcdfCollection->SetAttribute ("Name", StringValue ("M2E latency - eCDF - All calls"));
+  m2eLatencyEcdfCollection->GetAttribute ("XAxis", xAxis);
+  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
+  m2eLatencyEcdfCollection->GetAttribute ("YAxis", yAxis);
+  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Empirical CDF"));
+  m2eLatencyEcdfCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
+
+  //Collection to show Timelines of MCPTT metrics per group together
+  auto accessTimeTimelineCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
+  accessTimeTimelineCollection->SetAttribute ("Name", StringValue ("Access time - Timeline - All calls"));
+  accessTimeTimelineCollection->GetAttribute ("XAxis", xAxis);
+  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Time (s)"));
+  accessTimeTimelineCollection->GetAttribute ("YAxis", yAxis);
+  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
+  accessTimeTimelineCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
+
+  auto m2eLatencyTimelineCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
+  m2eLatencyTimelineCollection->SetAttribute ("Name", StringValue ("M2E latency - Timeline - All calls"));
+  m2eLatencyTimelineCollection->GetAttribute ("XAxis", xAxis);
+  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Time (s)"));
+  m2eLatencyTimelineCollection->GetAttribute ("YAxis", yAxis);
+  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
+  m2eLatencyTimelineCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
+
+
+  //Connect traces to the MCPTT trace helper and add them to the respective collections
+  NetSimulyzerMcpttMetricsTracer mcpttMetricsTracer;
+
+  for (uint16_t callId = 1; callId < groupVectorsSize; ++callId) //callId == groupId
+    {
+      //ECDFs for Access time
+      auto groupAccessTimeEcdf = CreateObject<netsimulyzer::EcdfSink> (orchestrator, "Access time - eCDF - CallId " + std::to_string (callId));
+      groupAccessTimeEcdf->GetXAxis ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
+      groupAccessTimeEcdf->GetSeries ()->SetAttribute ("Color", GetNextColor ());
+      mcpttMetricsTracer.m_accessTimeEcdfPerCall.insert (std::pair<uint32_t, Ptr<netsimulyzer::EcdfSink> > (callId, groupAccessTimeEcdf) );
+      accessTimeEcdfCollection->Add (groupAccessTimeEcdf->GetSeries ());
+
+      //ECDFs for M2E latency
+      auto groupM2eLatencyEcdfs = CreateObject<netsimulyzer::EcdfSink> (orchestrator, "M2E latency - eCDF - CallId " + std::to_string (callId));
+      groupM2eLatencyEcdfs->GetXAxis ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
+      groupM2eLatencyEcdfs->GetSeries ()->SetAttribute ("Color", GetNextColor ());
+      mcpttMetricsTracer.m_m2eLatencyEcdfPerCall.insert (std::pair<uint32_t, Ptr<netsimulyzer::EcdfSink> > (callId, groupM2eLatencyEcdfs) );
+      m2eLatencyEcdfCollection->Add (groupM2eLatencyEcdfs->GetSeries ());
+
+      //Timeline for access time
+      auto  groupAccessTimeTimeline = CreateObject <netsimulyzer::XYSeries> (orchestrator);
+      groupAccessTimeTimeline->SetAttribute ("Name", StringValue ("Access time - Timeline - CallId " + std::to_string (callId)));
+      groupAccessTimeTimeline->SetAttribute ("Color", GetNextColor ());
+      groupAccessTimeTimeline->SetAttribute ("Connection", StringValue ("None"));
+      groupAccessTimeTimeline->GetXAxis ()->SetAttribute ("Name", StringValue ("Time (s)"));
+      groupAccessTimeTimeline->GetYAxis ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
+      mcpttMetricsTracer.m_accessTimeTimelineSeriesPerCall.insert (std::pair<uint32_t, Ptr<netsimulyzer::XYSeries> > (callId, groupAccessTimeTimeline) );
+      accessTimeTimelineCollection->Add (groupAccessTimeTimeline);
+
+      //Timeline for M2E latency
+      auto groupM2eLatencyTimeline = CreateObject <netsimulyzer::XYSeries> (orchestrator);
+      groupM2eLatencyTimeline->SetAttribute ("Name", StringValue ("M2E latency - Timeline - CallId " + std::to_string (callId)));
+      groupM2eLatencyTimeline->SetAttribute ("Color", GetNextColor ());
+      groupM2eLatencyTimeline->SetAttribute ("Connection", StringValue ("None"));
+      groupM2eLatencyTimeline->GetXAxis ()->SetAttribute ("Name", StringValue ("Time (s)"));
+      groupM2eLatencyTimeline->GetYAxis ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
+      mcpttMetricsTracer.m_m2eLatencyTimelineSeriesPerCall.insert (std::pair<uint32_t, Ptr<netsimulyzer::XYSeries> > (callId, groupM2eLatencyTimeline) );
+      m2eLatencyTimelineCollection->Add (groupM2eLatencyTimeline);
+    }
+
+  mcpttTraceHelper->TraceConnectWithoutContext ("AccessTimeTrace",
+                                                MakeCallback (&NetSimulyzerMcpttMetricsTracer::AccessTimeTrace, &mcpttMetricsTracer));
+  mcpttTraceHelper->TraceConnectWithoutContext ("MouthToEarLatencyTrace",
+                                                MakeCallback (&NetSimulyzerMcpttMetricsTracer::M2eLatencyTrace, &mcpttMetricsTracer));
+
+#endif
+
+
+  /**************** END MCPTT metrics tracing ************************************/
 
 
   /************ SL traces database setup *************************************/
@@ -1815,116 +1969,7 @@ main (int argc, char *argv[])
       std::cout << it->first << "\t\t" << it->second << std::endl;
     }
 
-#ifdef HAS_NETSIMULYZER
 
-  //Collection to show eCDFs of MCPTT metrics per group together
-  auto accessTimeEcdfCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
-  accessTimeEcdfCollection->SetAttribute ("Name", StringValue ("Access time - eCDF - All calls"));
-  accessTimeEcdfCollection->GetAttribute ("XAxis", xAxis);
-  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
-  accessTimeEcdfCollection->GetAttribute ("YAxis", yAxis);
-  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Empirical CDF"));
-  accessTimeEcdfCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
-
-  auto m2eLatencyEcdfCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
-  m2eLatencyEcdfCollection->SetAttribute ("Name", StringValue ("M2E latency - eCDF - All calls"));
-  m2eLatencyEcdfCollection->GetAttribute ("XAxis", xAxis);
-  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
-  m2eLatencyEcdfCollection->GetAttribute ("YAxis", yAxis);
-  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Empirical CDF"));
-  m2eLatencyEcdfCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
-
-  //Collection to show Timelines of MCPTT metrics per group together
-  auto accessTimeTimelineCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
-  accessTimeTimelineCollection->SetAttribute ("Name", StringValue ("Access time - Timeline - All calls"));
-  accessTimeTimelineCollection->GetAttribute ("XAxis", xAxis);
-  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Time (s)"));
-  accessTimeTimelineCollection->GetAttribute ("YAxis", yAxis);
-  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
-  accessTimeTimelineCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
-
-  auto m2eLatencyTimelineCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
-  m2eLatencyTimelineCollection->SetAttribute ("Name", StringValue ("M2E latency - Timeline - All calls"));
-  m2eLatencyTimelineCollection->GetAttribute ("XAxis", xAxis);
-  xAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Time (s)"));
-  m2eLatencyTimelineCollection->GetAttribute ("YAxis", yAxis);
-  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
-  m2eLatencyTimelineCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
-
-  std::vector<Ptr<netsimulyzer::XYSeries> > groupAccessTimeTimeline (groupVectorsSize);
-  std::vector<Ptr<netsimulyzer::XYSeries> > groupM2eLatencyTimeline (groupVectorsSize);
-  std::vector<Ptr<netsimulyzer::EcdfSink> > groupAccessTimeEcdfs (groupVectorsSize);
-  std::vector<Ptr<netsimulyzer::EcdfSink> > groupM2eLatencyEcdfs (groupVectorsSize);
-
-  for (uint16_t callId = 1; callId < 3; ++callId)
-    {
-      //ECDFs for Access time
-      groupAccessTimeEcdfs [callId] = CreateObject<netsimulyzer::EcdfSink> (orchestrator, "Access time - eCDF - CallId " + std::to_string (callId));
-      groupAccessTimeEcdfs [callId]->GetXAxis ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
-      groupAccessTimeEcdfs [callId]->GetSeries ()->SetAttribute ("Color", GetNextColor ());
-      accessTimeEcdfCollection->Add (groupAccessTimeEcdfs [callId]->GetSeries ());
-
-      //ECDFs for M2E latency
-      groupM2eLatencyEcdfs [callId] = CreateObject<netsimulyzer::EcdfSink> (orchestrator, "M2E latency - eCDF - CallId " + std::to_string (callId));
-      groupM2eLatencyEcdfs [callId]->GetXAxis ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
-      groupM2eLatencyEcdfs [callId]->GetSeries ()->SetAttribute ("Color", GetNextColor ());
-      m2eLatencyEcdfCollection->Add (groupM2eLatencyEcdfs [callId]->GetSeries ());
-
-      //Timeline for access time
-      groupAccessTimeTimeline [callId] = CreateObject <netsimulyzer::XYSeries> (orchestrator);
-      groupAccessTimeTimeline [callId]->SetAttribute ("Name", StringValue ("Access time - Timeline - CallId " + std::to_string (callId)));
-      groupAccessTimeTimeline [callId]->SetAttribute ("Color", GetNextColor ());
-      groupAccessTimeTimeline [callId]->SetAttribute ("Connection", StringValue ("None"));
-      groupAccessTimeTimeline [callId]->GetXAxis ()->SetAttribute ("Name", StringValue ("Time (s)"));
-      groupAccessTimeTimeline [callId]->GetYAxis ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
-      accessTimeTimelineCollection->Add (groupAccessTimeTimeline [callId]);
-      //Timeline for M2E latency
-      groupM2eLatencyTimeline [callId] = CreateObject <netsimulyzer::XYSeries> (orchestrator);
-      groupM2eLatencyTimeline [callId]->SetAttribute ("Name", StringValue ("M2E latency - Timeline - CallId " + std::to_string (callId)));
-      groupM2eLatencyTimeline [callId]->SetAttribute ("Color", GetNextColor ());
-      groupM2eLatencyTimeline [callId]->SetAttribute ("Connection", StringValue ("None"));
-      groupM2eLatencyTimeline [callId]->GetXAxis ()->SetAttribute ("Name", StringValue ("Time (s)"));
-      groupM2eLatencyTimeline [callId]->GetYAxis ()->SetAttribute ("Name", StringValue ("M2E latency (ms)"));
-      m2eLatencyTimelineCollection->Add (groupM2eLatencyTimeline [callId]);
-    }
-
-  //Read from files
-  double time, latency;
-  uint16_t  callId;
-  //#  time(s) userid callid result latency(s)
-  std::ifstream accessTimeFile ("mcptt-access-time.txt");
-  uint16_t userId;
-  std::string result;
-  if (accessTimeFile.is_open ())
-
-    {
-      std::string headers;
-      std::getline (accessTimeFile, headers);
-      while (accessTimeFile >> time >> userId >> callId >> result >> latency)
-        {
-          groupAccessTimeEcdfs [callId]->Append (latency * 1000); //display it is ms
-          groupAccessTimeTimeline [callId]->Append (time, latency * 1000); //display it is ms
-        }
-      accessTimeFile.close ();
-    }
-
-  //#  time(s) ssrc nodeid callid latency(s)
-  std::ifstream m2eLatencyFile ("mcptt-m2e-latency.txt");
-  uint16_t ssrc, nodeId;
-  if (m2eLatencyFile.is_open ())
-
-    {
-      std::string headers;
-      std::getline (m2eLatencyFile, headers);
-      while (m2eLatencyFile >> time >> ssrc >> nodeId >> callId >> latency)
-        {
-          //std::cout <<  time <<" " << ssrc << " " << nodeId << " " << callId << " " << latency*1000 << std::endl;
-          groupM2eLatencyEcdfs [callId]->Append (latency * 1000); //display it is ms
-          groupM2eLatencyTimeline [callId]->Append (time, latency * 1000); //display it is ms
-        }
-      m2eLatencyFile.close ();
-    }
-#endif
 
   Simulator::Destroy ();
   return 0;
