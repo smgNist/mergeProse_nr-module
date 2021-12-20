@@ -72,9 +72,18 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
   NS_ASSERT_MSG (selectedTxOpps.size () > 0, "Scheduler should select at least 1 slot from txOpps");
   uint32_t tbs = 0;
   uint8_t assignedSbCh = 0;
-  uint16_t availableSymbols = selectedTxOpps.begin ()->slPsschSymLength;
+  //find the minimum available number of contiguous PSSCH symbols in the
+  //selected TxOpps; this will affect the Transport Block size
+  uint16_t minAvailableSymbols = std::numeric_limits<uint16_t>::max ();
+  for (auto it = selectedTxOpps.begin (); it != selectedTxOpps.end (); it++)
+    {
+      if (minAvailableSymbols < it->slPsschSymLength)
+        {
+          minAvailableSymbols = it->slPsschSymLength;
+        }
+    }
+  NS_LOG_DEBUG ("Minimum available symbols for PSSCH = " << minAvailableSymbols);
   uint16_t sbChSize = selectedTxOpps.begin ()->slSubchannelSize;
-  NS_LOG_DEBUG ("Total available symbols for PSSCH = " << availableSymbols);
   //find the minimum available number of contiguous sub-channels in the
   //selected TxOpps
   auto sbChInfo = GetAvailSbChInfo (selectedTxOpps);
@@ -82,7 +91,7 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
   do
     {
       assignedSbCh++;
-      tbs = GetNrSlAmc ()->CalculateTbSize (dstInfo->GetDstMcs (), sbChSize * assignedSbCh * availableSymbols);
+      tbs = GetNrSlAmc ()->CalculateTbSize (dstInfo->GetDstMcs (), sbChSize * assignedSbCh * minAvailableSymbols);
     }
   while (tbs < bufferSize + 5 /*(5 bytes overhead of SCI format 2A)*/ && (sbChInfo.numSubCh - assignedSbCh) > 0);
 
@@ -114,7 +123,7 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
       slotAlloc.slPscchSymLength = itTxOpps->slPscchSymLength;
       //PSSCH
       slotAlloc.slPsschSymStart = itTxOpps->slPsschSymStart;
-      slotAlloc.slPsschSymLength = availableSymbols;
+      slotAlloc.slPsschSymLength = itTxOpps->slPsschSymLength;
       slotAlloc.slPsschSubChStart = *itsbChIndexPerSlot;
       slotAlloc.slPsschSubChLength = assignedSbCh;
       slotAlloc.maxNumPerReserve = itTxOpps->slMaxNumPerReserve;
