@@ -1058,9 +1058,9 @@ NrUePhy::SendDataChannels (const Ptr<PacketBurst> &pb,
 }
 
 void
-NrUePhy::SendCtrlChannels (Time prd)
+NrUePhy::SendCtrlChannels (Time duration)
 {
-  m_spectrumPhy->StartTxUlControlFrames (m_ctrlMsgs, prd);
+  m_spectrumPhy->StartTxUlControlFrames (m_ctrlMsgs, duration);
   m_ctrlMsgs.clear ();
 }
 

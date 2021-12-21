@@ -559,11 +559,11 @@ private:
   /**
    * \brief Transmit the control channel
    *
-   * \param varTtiPeriod the period of transmission
+   * \param duration the duration of transmission
    *
    * Call the NrSpectrumPhy class, indicating the control message to transmit.
    */
-  void SendCtrlChannels (Time prd);
+  void SendCtrlChannels (Time duration);
 
   // SAP methods
   void DoReset ();
@@ -876,18 +876,18 @@ private:
    * \brief Transmit to the spectrum phy the NR SL CTRL packet burst
    *
    * \param pb Packet burst to transmit
-   * \param varTtiPeriod period of transmission
+   * \param varTtiDuration duration of transmission
    * \param varTtiInfo the slot VarTti allocation info of the variable TTI
    */
-  void SendNrSlCtrlChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPeriod, const NrSlVarTtiAllocInfo &varTtiInfo);
+  void SendNrSlCtrlChannels (const Ptr<PacketBurst> &pb, const Time &varTtiDuration, const NrSlVarTtiAllocInfo &varTtiInfo);
   /**
    * \brief Transmit to the spectrum phy the NR SL CTRL packet burst
    *
    * \param pb Packet burst to transmit
-   * \param varTtiPeriod period of transmission
+   * \param varTtiDuration duration of transmission
    * \param varTtiInfo the slot VarTti allocation info of the variable TTI
    */
-  void SendNrSlDataChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPeriod, const NrSlVarTtiAllocInfo &varTtiInfo);
+  void SendNrSlDataChannels (const Ptr<PacketBurst> &pb, const Time &varTtiDuration, const NrSlVarTtiAllocInfo &varTtiInfo);
   /**
    * \brief Transmit NR SL DATA and return the time at which the transmission will end
    * \param varTtiInfo the current slot VarTti allocation info to TX NR SL DATA
