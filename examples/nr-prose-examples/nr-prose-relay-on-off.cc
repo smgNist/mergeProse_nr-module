@@ -337,7 +337,6 @@ RxPacketTraceForDelay (Ptr<OutputStreamWrapper> stream, Ptr<Node> node, const Ad
                         << std::endl;
 }
 
-
 #ifdef HAS_NETSIMULYZER
 /*
  * Trace sink to add packets to a netSimulyzer ThroughputSink upon transmission
@@ -567,6 +566,7 @@ main (int argc, char *argv[])
   //Sidelink configuration
   uint16_t numerologyCc0Bwp1 = 2; //(From SL examples)  BWP1 will be used for SL
   Time startRelayConnTime = Seconds (2.0); //Time to start the U2N relay connection establishment
+  bool enableSensing = false;
 
   //Topology
   uint16_t nInNetUes = 1;
@@ -601,6 +601,8 @@ main (int argc, char *argv[])
   cmd.AddValue ("radiusRelayUes", "Radius of the circle (centered in the gNB) where relay UEs are positioned", radiusRelayUes);
   cmd.AddValue ("radiusRemoteUes", "Radius of the circle (centered in the relay UE) where remote UEs are positioned", radiusRemoteUes);
   cmd.AddValue ("relayUesTraffic", "True if relay UEs have their own data traffic", relayUesTraffic);
+  cmd.AddValue ("enableSensing", "True if sensing is activated", enableSensing);
+
   cmd.Parse (argc, argv);
 
 
@@ -794,7 +796,7 @@ main (int argc, char *argv[])
   NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gNbNodes, inNetBwp);
 
   //SL UE MAC configuration
-  nrHelper->SetUeMacAttribute ("EnableSensing", BooleanValue (false));
+  nrHelper->SetUeMacAttribute ("EnableSensing", BooleanValue (enableSensing));
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (2));
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
