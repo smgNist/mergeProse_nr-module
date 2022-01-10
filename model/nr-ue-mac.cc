@@ -1312,16 +1312,89 @@ NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
 
       NS_LOG_DEBUG ("Size of allSensingData " << allSensingData.size ());
 
-      //step 5 point 1: We don't need to implement it since we only sense those
-      //slots at which this UE does not transmit. This is due to the half
-      //duplex nature of the PHY.
+      //Step 5
+
+      //Trim non monitored slots data to fit in selection window
+      //Here we trim newest data (t > n – Tproc0), the oldest data is trimmed
+      //in the UpdateSensingWindow function
+      auto notMonitoredData = m_slNotMonSensingData;
+      auto rvIt2 = notMonitoredData.crbegin ();
+      if (rvIt2 != notMonitoredData.crend ())
+        {
+          while (sfn.Normalize () - rvIt2->sfn.Normalize () <= GetTproc0 ())
+            {
+              NS_LOG_DEBUG ("IMSI " << m_imsi << " ignoring not monitored slot (out of sensing window) at sfn " << sfn
+                            << " received at " << rvIt2->sfn);
+              notMonitoredData.pop_back ();
+              rvIt2 = notMonitoredData.crbegin ();
+            }
+        }
+
+      //Calculate all possible (future) transmissions of the non monitored slots
+      std::unordered_map<uint64_t, std::list<SlotSensingData>> allNonMonitoredData;
+      for (const auto &itNonMonSlot:notMonitoredData)
+        {
+          std::list<SlotSensingData> listFutureNonMonTx = GetFutSlotsBasedOnSens (itNonMonSlot);
+          allNonMonitoredData.emplace (std::make_pair (itNonMonSlot.sfn.GetEncoding (), listFutureNonMonTx));
+        }
+      NS_LOG_DEBUG ("Size of allNonMonitoredData " << allNonMonitoredData.size ());
+      //Exclude them from candidate resources
+      //This is a based on the traversing done for sensing data in step 6.
+      auto candSsResoTmp = allTxOpps;
+      auto nrCandSsResoTmp = GetNrSupportedList (sfn, candSsResoTmp);
+      auto itCandSsResoTmp = nrCandSsResoTmp.begin ();
+      while (itCandSsResoTmp != nrCandSsResoTmp.end ())
+        {
+          // calculate all proposed transmissions of current candidate resource
+          std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> listFutureCandsTmp;
+          uint16_t pPrimeRsvpTx = m_slTxPool->GetResvPeriodInSlots (GetBwpId (),
+                                                                    m_poolId,
+                                                                    m_pRsvpTx,
+                                                                    m_nrSlUePhySapProvider->GetSlotPeriod ());
+          for (uint16_t i = 0; i < m_cResel; i++)
+            {
+              auto slAlloc = *itCandSsResoTmp;
+              slAlloc.sfn.Add (i * pPrimeRsvpTx);
+              listFutureCandsTmp.emplace_back (slAlloc);
+            }
+          // Traverse over all the possible transmissions of each non monitored slot
+          for (const auto &itNonMonSlot:allNonMonitoredData)
+            {
+              std::list<SlotSensingData> listFutureNonMonTx = itNonMonSlot.second;
+              // for all proposed transmissions of current candidate resource
+              for (auto &itFutureCandTmp:listFutureCandsTmp)
+                {
+                  //for all future transmissions of each non monitored slot
+                  for (const auto &itFutureNonMonTx:listFutureNonMonTx)
+                    {
+                      if (itFutureCandTmp.sfn.Normalize () == itFutureNonMonTx.sfn.Normalize ())
+                        {
+                          itCandSsResoTmp = nrCandSsResoTmp.erase (itCandSsResoTmp);
+                          NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded not monitored slot at sfn " << itFutureCandTmp.sfn);
+                        }
+                    }
+                }
+            }
+          itCandSsResoTmp++;
+        }
+
+      NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded " << mTotal - nrCandSsResoTmp.size () << " non monitored resources ");
+
+      //step 5a
+      if (nrCandSsResoTmp.size () < (GetResourcePercentage () / 100.0) * mTotal)
+       {
+          NS_LOG_DEBUG ("The number of candidate resources is smaller than X * mTotal. Reverting exclusion (step 5a)");
+          nrCandSsResoTmp = GetNrSupportedList (sfn, candSsResoTmp);
+       }
+      NS_LOG_DEBUG (nrCandSsResoTmp.size () << " slots selected after non monitored resource exclusion from " << mTotal << " slots");
+
+
       //step 6
       do
         {
           //following assignment is needed since we might have to perform
           //multiple do-while over the same list by increasing the rsrpThrehold
-          candSsResoA = allTxOpps;
-          nrCandSsResoA = GetNrSupportedList (sfn, candSsResoA);
+          nrCandSsResoA = nrCandSsResoTmp;
           auto itCandSsResoA = nrCandSsResoA.begin ();
           while (itCandSsResoA != nrCandSsResoA.end ())
             {
@@ -1502,6 +1575,31 @@ NrUeMac::DoReceiveSensingData (SensingData sensingData)
 }
 
 void
+NrUeMac::DoReceiveNotMonitoredSlot (SfnSf notMonitoredSlot)
+{
+  NS_LOG_FUNCTION (this);
+
+  if (m_enableSensing)
+    {
+      //Create hypothetical sensing data for the non monitored slots
+      //to be used in NrUeMac::GetNrSlTxOpportunities according to step 5 of 3GPP TS 38.214 (v16.7.0) section 8.1.4
+      SensingData notMonitoredData (m_currentSlot,                          //sfn
+                                    m_pRsvpTx.GetMilliSeconds (),           //rsvp (use this UE Tx rsvp)
+                                    GetTotalSubCh (m_poolId),               //sbChLength (All BW)
+                                    0,                                      //sbChStart (Starting at idx 0)
+                                    std::numeric_limits <uint8_t>::max (),  //prio (default)
+                                    0.0,                                    //slRsrp (default)
+                                    std::numeric_limits <uint8_t>::max (),  //gapReTx1 (default)
+                                    std::numeric_limits <uint8_t>::max (),  //sbChStartReTx1 (default)
+                                    std::numeric_limits <uint8_t>::max (),  //gapReTx2 (default)
+                                    std::numeric_limits <uint8_t>::max ()   //sbChStartReTx2 (default)
+                                    );
+      //oldest data will be at the front of the queue
+      m_slNotMonSensingData.push_back (notMonitoredData);
+    }
+}
+
+void
 NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
 {
   NS_LOG_FUNCTION (this << sfn);
@@ -1530,6 +1628,27 @@ NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
 
   //To keep the size of the buffer equal to [n – T0 , n – Tproc0)
   //the other end of sensing buffer is trimmed in GetNrSlTxOpportunities.
+
+
+  //Update sensing window for not monitored slots as well
+  //Here we trim oldest data (t < n - T0)
+  auto it2 = m_slNotMonSensingData.cbegin();
+  while (it2 != m_slNotMonSensingData.cend ())
+    {
+      if (it2->sfn.Normalize () < sfn.Normalize () - sensWindLen)
+        {
+          NS_LOG_DEBUG ("IMSI " << m_imsi << " not monitored slot at sfn " << sfn << " received at " << it2->sfn);
+          it2 = m_slNotMonSensingData.erase (it2);
+        }
+      else
+        {
+          //once we reached a non monitored slot, which lies in the
+          //sensing window, we break. If the last entry lies in the sensing
+          //window rest of the entries as well.
+          break;
+        }
+      ++it2;
+    }
 }
 
 

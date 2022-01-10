@@ -124,6 +124,12 @@ public:
    * \param sensingData The sensing data
    */
   virtual void ReceiveSensingData (SensingData sensingData) = 0;
+  /**
+   * \brief Notify MAC that a slot was not monitored, e.g., because the UE was
+   *        transmitting and the SL is half-duplex
+   * \param notMonitoredData The slot that was not monitored
+   */
+  virtual void ReceiveNotMonitoredSlot (SfnSf notMonitoredSlot) = 0;
 };
 
 
@@ -231,6 +237,7 @@ public:
   virtual std::unordered_set <uint32_t> GetSlRxDestinations () override;
   virtual void ReceivePsschPhyPdu (Ptr<PacketBurst> pdu) override;
   virtual void ReceiveSensingData (SensingData sensingData) override;
+  virtual void ReceiveNotMonitoredSlot (SfnSf notMonitoredSlot) override;
 
 private:
   C* m_owner; ///< the owner class
@@ -275,6 +282,13 @@ void
 MemberNrSlUePhySapUser<C>::ReceiveSensingData (SensingData sensingData)
 {
   m_owner->DoReceiveSensingData (sensingData);
+}
+
+template <class C>
+void
+MemberNrSlUePhySapUser<C>::ReceiveNotMonitoredSlot (SfnSf notMonitoredSlot)
+{
+  m_owner->DoReceiveNotMonitoredSlot (notMonitoredSlot);
 }
 
 

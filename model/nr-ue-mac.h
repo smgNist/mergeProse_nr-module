@@ -854,6 +854,11 @@ protected:
    */
   void DoReceiveSensingData (SensingData sensingData);
 
+  /**
+    * \brief Notification from PHY that a slot was not monitored
+    * \param notMonitoredData The slot that was not monitored
+    */
+   void DoReceiveNotMonitoredSlot (SfnSf notMonitoredSlot);
 
   // forwarded from MemberNrSlUeMacSchedSapUser
   /**
@@ -1106,6 +1111,8 @@ private:
   uint32_t m_srcL2Id {std::numeric_limits <uint32_t>::max ()}; //!< The NR Sidelink Source L2 id;
   bool m_nrSlMacPduTxed {false}; //!< Flag to indicate the TX of SL MAC PDU to PHY
   std::list<SensingData> m_sensingData; //!< List to store sensing data
+  std::list<SensingData> m_slNotMonSensingData; //!< List to store info about the slots that were not monitored during sensing
+
   int m_thresRsrp {-128}; //!< A threshold in dBm used for sensing based UE autonomous resource selection
   uint8_t m_resPercentage {0}; /**< The percentage threshold to indicate the
                                     minimum number of candidate single-slot
