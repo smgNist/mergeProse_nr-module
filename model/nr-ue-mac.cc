@@ -1314,30 +1314,30 @@ NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
 
       //Step 5
 
-      //Trim non monitored slots data to fit in selection window
+      //Trim unmonitored slots data to fit in selection window
       //Here we trim newest data (t > n – Tproc0), the oldest data is trimmed
       //in the UpdateSensingWindow function
-      auto notMonitoredData = m_slNotMonSensingData;
-      auto rvIt2 = notMonitoredData.crbegin ();
-      if (rvIt2 != notMonitoredData.crend ())
+      auto unmonSlotsData = m_nrSlUnmonSlotsData;
+      auto rvIt2 = unmonSlotsData.crbegin ();
+      if (rvIt2 != unmonSlotsData.crend ())
         {
           while (sfn.Normalize () - rvIt2->sfn.Normalize () <= GetTproc0 ())
             {
-              NS_LOG_DEBUG ("IMSI " << m_imsi << " ignoring not monitored slot (out of sensing window) at sfn " << sfn
+              NS_LOG_DEBUG ("IMSI " << m_imsi << " ignoring unmonitored slot (out of sensing window) at sfn " << sfn
                             << " received at " << rvIt2->sfn);
-              notMonitoredData.pop_back ();
-              rvIt2 = notMonitoredData.crbegin ();
+              unmonSlotsData.pop_back ();
+              rvIt2 = unmonSlotsData.crbegin ();
             }
         }
 
-      //Calculate all possible (future) transmissions of the non monitored slots
-      std::unordered_map<uint64_t, std::list<SlotSensingData>> allNonMonitoredData;
-      for (const auto &itNonMonSlot:notMonitoredData)
+      //Calculate all proposed transmissions of the unmonitored slots (bullet 2 of step 5 of TS 38.214 Section 8.1.4)
+      std::unordered_map<uint64_t, std::list<SlotSensingData>> allUnmonitoredData;
+      for (const auto &itUnmonSlot : unmonSlotsData)
         {
-          std::list<SlotSensingData> listFutureNonMonTx = GetFutSlotsBasedOnSens (itNonMonSlot);
-          allNonMonitoredData.emplace (std::make_pair (itNonMonSlot.sfn.GetEncoding (), listFutureNonMonTx));
+          std::list<SlotSensingData> listFutureUnmonTx = GetFutSlotsBasedOnSens (itUnmonSlot);
+          allUnmonitoredData.emplace (std::make_pair (itUnmonSlot.sfn.GetEncoding (), listFutureUnmonTx));
         }
-      NS_LOG_DEBUG ("Size of allNonMonitoredData " << allNonMonitoredData.size ());
+      NS_LOG_DEBUG ("Size of allUnmonitoredData " << allUnmonitoredData.size ());
       //Exclude them from candidate resources
       //This is a based on the traversing done for sensing data in step 6.
       auto candSsResoTmp = allTxOpps;
@@ -1357,20 +1357,20 @@ NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
               slAlloc.sfn.Add (i * pPrimeRsvpTx);
               listFutureCandsTmp.emplace_back (slAlloc);
             }
-          // Traverse over all the possible transmissions of each non monitored slot
-          for (const auto &itNonMonSlot:allNonMonitoredData)
+          // Traverse over all the possible transmissions of each unmonitored slot
+          for (const auto &itUnmonSlot : allUnmonitoredData)
             {
-              std::list<SlotSensingData> listFutureNonMonTx = itNonMonSlot.second;
+              std::list<SlotSensingData> listFutureUnmonTx = itUnmonSlot.second;
               // for all proposed transmissions of current candidate resource
-              for (auto &itFutureCandTmp:listFutureCandsTmp)
+              for (auto &itFutureCandTmp : listFutureCandsTmp)
                 {
-                  //for all future transmissions of each non monitored slot
-                  for (const auto &itFutureNonMonTx:listFutureNonMonTx)
+                  //for all future transmissions of each unmonitored slot
+                  for (const auto &itFutureUnmonTx : listFutureUnmonTx)
                     {
-                      if (itFutureCandTmp.sfn.Normalize () == itFutureNonMonTx.sfn.Normalize ())
+                      if (itFutureCandTmp.sfn.Normalize () == itFutureUnmonTx.sfn.Normalize ())
                         {
                           itCandSsResoTmp = nrCandSsResoTmp.erase (itCandSsResoTmp);
-                          NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded not monitored slot at sfn " << itFutureCandTmp.sfn);
+                          NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded unmonitored slot at sfn " << itFutureCandTmp.sfn);
                         }
                     }
                 }
@@ -1378,15 +1378,15 @@ NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
           itCandSsResoTmp++;
         }
 
-      NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded " << mTotal - nrCandSsResoTmp.size () << " non monitored resources ");
+      NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded " << mTotal - nrCandSsResoTmp.size () << " unmonitored resources ");
 
       //step 5a
       if (nrCandSsResoTmp.size () < (GetResourcePercentage () / 100.0) * mTotal)
        {
-          NS_LOG_DEBUG ("The number of candidate resources is smaller than X * mTotal. Reverting exclusion (step 5a)");
+          NS_LOG_DEBUG ("The number of candidate resources is smaller than X * mTotal. Reverting unmonitored resources exclusion (step 5a)");
           nrCandSsResoTmp = GetNrSupportedList (sfn, candSsResoTmp);
        }
-      NS_LOG_DEBUG (nrCandSsResoTmp.size () << " slots selected after non monitored resource exclusion from " << mTotal << " slots");
+      NS_LOG_DEBUG (nrCandSsResoTmp.size () << " slots selected after unmonitored resource exclusion from " << mTotal << " slots");
 
 
       //step 6
@@ -1575,27 +1575,27 @@ NrUeMac::DoReceiveSensingData (SensingData sensingData)
 }
 
 void
-NrUeMac::DoReceiveNotMonitoredSlot (SfnSf notMonitoredSlot)
+NrUeMac::DoNotifyUnmonitoredSlot (SfnSf unmonitoredSlot)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << unmonitoredSlot.Normalize ());
 
   if (m_enableSensing)
     {
-      //Create hypothetical sensing data for the non monitored slots
+      //Create sensing data structure for the unmonitored slot
       //to be used in NrUeMac::GetNrSlTxOpportunities according to step 5 of 3GPP TS 38.214 (v16.7.0) section 8.1.4
-      SensingData notMonitoredData (m_currentSlot,                          //sfn
-                                    m_pRsvpTx.GetMilliSeconds (),           //rsvp (use this UE Tx rsvp)
-                                    GetTotalSubCh (m_poolId),               //sbChLength (All BW)
-                                    0,                                      //sbChStart (Starting at idx 0)
-                                    std::numeric_limits <uint8_t>::max (),  //prio (default)
-                                    0.0,                                    //slRsrp (default)
-                                    std::numeric_limits <uint8_t>::max (),  //gapReTx1 (default)
-                                    std::numeric_limits <uint8_t>::max (),  //sbChStartReTx1 (default)
-                                    std::numeric_limits <uint8_t>::max (),  //gapReTx2 (default)
-                                    std::numeric_limits <uint8_t>::max ()   //sbChStartReTx2 (default)
-                                    );
+      SensingData unmonitoredData (unmonitoredSlot,                       //sfn
+                                   m_pRsvpTx.GetMilliSeconds (),          //rsvp (use this UE Tx rsvp)
+                                   GetTotalSubCh (m_poolId),              //sbChLength (All BW)
+                                   0,                                     //sbChStart (Starting at idx 0)
+                                   std::numeric_limits <uint8_t>::max (), //prio (default)
+                                   0.0,                                   //slRsrp (default)
+                                   std::numeric_limits <uint8_t>::max (), //gapReTx1 (default)
+                                   std::numeric_limits <uint8_t>::max (), //sbChStartReTx1 (default)
+                                   std::numeric_limits <uint8_t>::max (), //gapReTx2 (default)
+                                   std::numeric_limits <uint8_t>::max ()  //sbChStartReTx2 (default)
+                                   );
       //oldest data will be at the front of the queue
-      m_slNotMonSensingData.push_back (notMonitoredData);
+      m_nrSlUnmonSlotsData.push_back (unmonitoredData);
     }
 }
 
@@ -1632,19 +1632,19 @@ NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
 
   //Update sensing window for not monitored slots as well
   //Here we trim oldest data (t < n - T0)
-  auto it2 = m_slNotMonSensingData.cbegin();
-  while (it2 != m_slNotMonSensingData.cend ())
+  auto it2 = m_nrSlUnmonSlotsData.cbegin();
+  while (it2 != m_nrSlUnmonSlotsData.cend ())
     {
       if (it2->sfn.Normalize () < sfn.Normalize () - sensWindLen)
         {
           NS_LOG_DEBUG ("IMSI " << m_imsi << " not monitored slot at sfn " << sfn << " received at " << it2->sfn);
-          it2 = m_slNotMonSensingData.erase (it2);
+          it2 = m_nrSlUnmonSlotsData.erase (it2);
         }
       else
         {
-          //once we reached a non monitored slot, which lies in the
+          //once we reached an unmonitored slot, which lies in the
           //sensing window, we break. If the last entry lies in the sensing
-          //window rest of the entries as well.
+          //window, the rest of the entries as well.
           break;
         }
       ++it2;
