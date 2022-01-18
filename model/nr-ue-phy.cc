@@ -1523,6 +1523,7 @@ NrUePhy::SendNrSlCtrlChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPer
   SetSubChannelsForTransmission (channelRbs, varTtiInfo.symLength);
   NS_LOG_DEBUG ("Sending PSCCH on SfnSf " << m_currentSlot);
   m_spectrumPhy->StartTxSlCtrlFrames (pb, varTtiPeriod);
+
 }
 
 Time
@@ -1575,6 +1576,10 @@ NrUePhy::SendNrSlDataChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPer
   SetSubChannelsForTransmission (channelRbs, varTtiInfo.symLength);
   NS_LOG_DEBUG ("Sending PSSCH on SfnSf " << m_currentSlot);
   m_spectrumPhy->StartTxSlDataFrames (pb, varTtiPeriod);
+
+  //Notify MAC that this slot won't be monitored as we started a transmission and the SL is half-duplex
+  m_nrSlUePhySapUser->NotifyUnmonitoredSlot (m_currentSlot);
+
 }
 
 void
