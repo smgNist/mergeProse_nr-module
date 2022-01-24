@@ -547,7 +547,6 @@ main (int argc, char *argv[])
   //Common configuration
   double centralFrequencyBand = 5.89e9; // band n47 (From SL examples)
   double bandwidthBand = 40e6; //40 MHz
-  //  double bandwidthBand = 400; //Multiple of 100 KHz; 400 = 40 MHz (This is from SL examples and does not work here. TODO: verify consistency of in-network, SL bandwidth config)
   double centralFrequencyCc0 = 5.89e9;
   double bandwidthCc0 = bandwidthBand;
   std::string pattern = "DL|DL|DL|F|UL|UL|UL|UL|UL|UL|"; // From SL examples
@@ -564,6 +563,7 @@ main (int argc, char *argv[])
   //Sidelink configuration
   uint16_t numerologyCc0Bwp1 = 2; //(From SL examples)  BWP1 will be used for SL
   Time startRelayConnTime = Seconds (2.0); //Time to start the U2N relay connection establishment
+  bool enableSensing = false;
 
   //Topology
   uint16_t nInNetUes = 1;
@@ -603,6 +603,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("cp", "The pusher orchestrator contention probability.", cp);
   cmd.AddValue ("vaf", "The pusher orchestrator voice activity factor.", vaf);
   cmd.AddValue ("saf", "The pusher orchestrator session activity factor.", saf);
+  cmd.AddValue ("enableSensing", "True if sensing is activated", enableSensing);
 
   cmd.Parse (argc, argv);
 
@@ -797,7 +798,7 @@ main (int argc, char *argv[])
   NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gNbNodes, inNetBwp);
 
   //SL UE MAC configuration
-  nrHelper->SetUeMacAttribute ("EnableSensing", BooleanValue (false));
+  nrHelper->SetUeMacAttribute ("EnableSensing", BooleanValue (enableSensing));
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (2));
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
@@ -907,7 +908,7 @@ main (int argc, char *argv[])
   bwp.numerology = numerologyCc0Bwp1;
   bwp.symbolsPerSlots = 14;
   bwp.rbPerRbg = 1;
-  bwp.bandwidth = bandwidthCc0Bpw1;
+  bwp.bandwidth = bandwidthCc0Bpw1/1000/100; // SL configuration requires BW in Multiple of 100 KHz
 
   //Configure the SlBwpGeneric IE
   LteRrcSap::SlBwpGeneric slBwpGeneric;

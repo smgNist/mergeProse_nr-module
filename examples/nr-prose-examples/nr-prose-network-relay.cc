@@ -243,7 +243,6 @@ main (int argc, char *argv[])
   uint8_t numBands = 1;
   double centralFrequencyBand = 5.89e9; // band n47 (From SL examples)
   double bandwidthBand = 40e6; //40 MHz
-//  double bandwidthBand = 400; //Multiple of 100 KHz; 400 = 40 MHz (This is from SL examples and does not work here. TODO: verify consistency of in-network, SL bandwidth config)
   double centralFrequencyCc0 = 5.89e9;
   double bandwidthCc0 = bandwidthBand;
   std::string pattern = "DL|DL|DL|F|UL|UL|UL|UL|UL|UL|"; // From SL examples
@@ -599,7 +598,7 @@ main (int argc, char *argv[])
   bwp.numerology = numerologyCc0Bwp1;
   bwp.symbolsPerSlots = 14;
   bwp.rbPerRbg = 1;
-  bwp.bandwidth = bandwidthCc0Bpw1;
+  bwp.bandwidth = bandwidthCc0Bpw1/1000/100; // SL configuration requires BW in Multiple of 100 KHz
 
   //Configure the SlBwpGeneric IE
   LteRrcSap::SlBwpGeneric slBwpGeneric;

@@ -491,7 +491,7 @@ main (int argc, char *argv[])
   bwp.numerology = numerologyCc0Bwp0;
   bwp.symbolsPerSlots = 14;
   bwp.rbPerRbg = 1;
-  bwp.bandwidth = bandwidthCc0Bpw0;
+  bwp.bandwidth = bandwidthCc0Bpw0/1000/100; // SL configuration requires BW in Multiple of 100 KHz
 
   //Configure the SlBwpGeneric IE
   LteRrcSap::SlBwpGeneric slBwpGeneric;

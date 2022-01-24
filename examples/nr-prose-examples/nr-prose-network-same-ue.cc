@@ -541,7 +541,7 @@ main (int argc, char *argv[])
   bwp.numerology = numerologyCc0Bwp1;
   bwp.symbolsPerSlots = 14;
   bwp.rbPerRbg = 1;
-  bwp.bandwidth = bandwidthCc0Bpw1;
+  bwp.bandwidth = bandwidthCc0Bpw1/1000/100; // SL configuration requires BW in Multiple of 100 KHz
 
   //Configure the SlBwpGeneric IE
   LteRrcSap::SlBwpGeneric slBwpGeneric;
@@ -697,6 +697,10 @@ main (int argc, char *argv[])
       //Obtain local IPv4 addresses that will be used to route the unicast traffic upon setup of the direct link
       slIpv4AddressVector [u] = slUeNodes.Get (u)->GetObject<Ipv4L3Protocol> ()->GetAddress (1,0).GetLocal ();
     }
+
+  //Configure the value of timer Timer T5080 (Prose Direct Link Establishment Request Retransmission)
+  //to a lower value than the standard (8.0 s) to speed connection in shorter simulation time
+  Config::SetDefault ("ns3::NrSlUeProseDirectLink::T5080", TimeValue (Seconds (1.0)));
 
   /******** Configure ProSe layer in the SL UEs **********/
   //Create ProSe helper
