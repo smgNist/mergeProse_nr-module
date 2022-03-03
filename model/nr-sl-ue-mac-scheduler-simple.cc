@@ -77,7 +77,7 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
   uint16_t minAvailableSymbols = std::numeric_limits<uint16_t>::max ();
   for (auto it = selectedTxOpps.begin (); it != selectedTxOpps.end (); it++)
     {
-      if (minAvailableSymbols < it->slPsschSymLength)
+      if (minAvailableSymbols > it->slPsschSymLength)
         {
           minAvailableSymbols = it->slPsschSymLength;
         }
