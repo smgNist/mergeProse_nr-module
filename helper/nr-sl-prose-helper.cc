@@ -34,7 +34,6 @@
  */
 
 #include "nr-sl-prose-helper.h"
-#include <ns3/nr-sl-ue-prose.h>
 
 #include <ns3/nr-ue-net-device.h>
 #include <ns3/nr-sl-ue-rrc.h>
@@ -49,6 +48,7 @@
 #include <ns3/pointer.h>
 #include <ns3/simulator.h>
 #include <ns3/nr-point-to-point-epc-helper.h>
+#include <ns3/config.h>
 
 namespace ns3 {
 
@@ -60,6 +60,7 @@ NrSlProseHelper::NrSlProseHelper (void)
 
 {
   NS_LOG_FUNCTION (this);
+  m_discoveryTrace = CreateObject<NrSlDiscoveryTrace> ();
 }
 
 NrSlProseHelper::~NrSlProseHelper (void)
@@ -270,6 +271,73 @@ NrSlProseHelper::ConfigureL3UeToNetworkRelay (NetDeviceContainer relayUeDevices,
     }
 }
 
+void
+NrSlProseHelper::StartDiscoveryApp (Ptr<NetDevice> ueDevice, uint32_t appCode, uint32_t dstL2Id, NrSlUeProse::DiscoveryRole role)
+{
+  NS_LOG_FUNCTION (this);
+
+  Ptr<NrSlUeProse> ueProse = ueDevice->GetObject <NrUeNetDevice>()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  ueProse->SetL2Id (ueDevice->GetObject <NrUeNetDevice>()->GetRrc ()->GetSourceL2Id ());
+  ueProse->AddDiscoveryApp (appCode, dstL2Id, role);
+}
+
+void
+NrSlProseHelper::StopDiscoveryApp (Ptr<NetDevice> ueDevice, uint32_t appCode, NrSlUeProse::DiscoveryRole role)
+{
+  NS_LOG_FUNCTION (this);
+
+  Ptr<NrSlUeProse> ueProse = ueDevice->GetObject <NrUeNetDevice>()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  ueProse->RemoveDiscoveryApp (appCode, role);
+}
+
+void
+NrSlProseHelper::StartDiscovery (Ptr<NetDevice> ueDevice, std::list<uint32_t> appCodes, std::list<uint32_t> dstL2Ids, NrSlUeProse::DiscoveryRole role)
+{
+  NS_LOG_FUNCTION (this);  
+
+  std::list<uint32_t>::iterator dst = dstL2Ids.begin ();
+  for (std::list<uint32_t>::iterator it = appCodes.begin (); it != appCodes.end (); ++it)
+  {
+    StartDiscoveryApp (ueDevice, *it, *dst, role);
+    ++dst;
+  }
+}
+
+void
+NrSlProseHelper::StopDiscovery (Ptr<NetDevice> ueDevice, std::list<uint32_t> appCodes, NrSlUeProse::DiscoveryRole role)
+{
+  NS_LOG_FUNCTION (this);
+
+  std::map <uint32_t, NrSlUeProse::DiscoveryInfo>::iterator itInfo;
+  for (std::list<uint32_t>::iterator it = appCodes.begin (); it != appCodes.end (); ++it)
+  {
+    StopDiscoveryApp (ueDevice, *it, role);
+  }
+}
+
+void
+NrSlProseHelper::StartRelayDiscovery (Ptr<NetDevice> ueDevice, uint32_t relayCode, uint32_t dstL2Id, NrSlUeProse::DiscoveryModel model, NrSlUeProse::DiscoveryRole role)
+{
+  NS_LOG_FUNCTION (this);
+  Ptr<NrSlUeProse> ueProse = ueDevice->GetObject <NrUeNetDevice>()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  ueDevice->GetObject <NrUeNetDevice>()->GetSlUeService ()->GetObject <NrSlUeProse> ()->SetL2Id (ueDevice->GetObject <NrUeNetDevice>()->GetRrc ()->GetSourceL2Id ());
+  ueProse->AddRelayDiscovery (relayCode, dstL2Id, model, role);
+}
+
+void
+NrSlProseHelper::StopRelayDiscovery (Ptr<NetDevice> ueDevice, uint32_t relayCode, NrSlUeProse::DiscoveryRole role)
+{
+  NS_LOG_FUNCTION (this);
+  Ptr<NrSlUeProse> ueProse = ueDevice->GetObject <NrUeNetDevice>()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+  ueProse->RemoveRelayDiscovery (relayCode, role);
+}
+
+void
+NrSlProseHelper::EnableDiscoveryTraces (void)
+{
+  NS_LOG_FUNCTION_NOARGS ();
+  Config::Connect ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/NrSlService/$ns3::NrSlUeProse/DiscoveryTrace", MakeBoundCallback (&NrSlDiscoveryTrace::DiscoveryTraceCallback, m_discoveryTrace));
+}
 
 } // namespace ns3
 

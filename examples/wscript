@@ -64,3 +64,7 @@ def build(bld):
     linked_modules.append('sip')
     obj = bld.create_ns3_program('nr-prose-relay-mcptt', linked_modules)
     obj.source = 'nr-prose-examples/nr-prose-relay-mcptt.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc nr-v2x-examples/v2x-kpi.cc nr-v2x-examples/ue-rlc-rx-output-stats.cc'
+    obj = bld.create_ns3_program('nr-prose-discovery', ['nr'])
+    obj.source = 'nr-prose-examples/nr-prose-discovery.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc'
+    obj = bld.create_ns3_program('nr-prose-discovery-relay', ['nr'])
+    obj.source = 'nr-prose-examples/nr-prose-discovery-relay.cc nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc'

@@ -14,6 +14,7 @@ def build(bld):
         'helper/nr-helper.cc',
         'helper/nr-phy-rx-trace.cc',
         'helper/nr-mac-rx-trace.cc',
+        'helper/nr-sl-discovery-trace.cc',
         'helper/nr-point-to-point-epc-helper.cc',
         'helper/nr-bearer-stats-calculator.cc',
         'helper/nr-bearer-stats-connector.cc',
@@ -157,6 +158,7 @@ def build(bld):
     headers.module = 'nr'
     headers.source = [
         'helper/nr-helper.h',
+        'helper/nr-sl-discovery-trace.h',
         'helper/nr-phy-rx-trace.h',
         'helper/nr-mac-rx-trace.h',
         'helper/nr-point-to-point-epc-helper.h',

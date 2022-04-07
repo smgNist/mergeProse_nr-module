@@ -365,4 +365,53 @@ NrSlBwpManagerUe::DoAddNrSlSrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalCh
   return res;
 }
 
+std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm>
+NrSlBwpManagerUe::DoAddNrSlDiscoveryRbLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &lcInfo, NrSlMacSapUser* msu)
+{
+  NS_LOG_FUNCTION (this);
+
+  //\todo At the moment this is just a C&P of DoAddNrSlDrbLc. TBD if having only one
+  //function and differentiate the behavior inside worth the implementation hassle
+
+  //SL Discovey RB LC 4
+  NS_ASSERT_MSG (lcInfo.lcId == 4, "This method can only add the LC for discovery radio bearers.");
+  std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm> res;
+  NrSlUeBwpLcIdentifier slLcIdentifier;
+  slLcIdentifier.lcId = lcInfo.lcId;
+  slLcIdentifier.srcL2Id = lcInfo.srcL2Id;
+  slLcIdentifier.dstL2Id = lcInfo.dstL2Id;
+
+  NS_LOG_DEBUG ("UE CCM Adding SL LcId = " << +lcInfo.lcId << " srcL2Id = " << lcInfo.srcL2Id << " dstL2Id = " << lcInfo.dstL2Id);
+
+  NS_ASSERT_MSG (m_nrSlDrbLcInfoMap.find (slLcIdentifier) == m_nrSlDrbLcInfoMap.end (), "cannot add channel because LCID " << +lcInfo.lcId
+                                                                                                                           << ", srcL2Id " << lcInfo.srcL2Id << ", dstL2Id " << lcInfo.dstL2Id << " is already present");
+  m_nrSlDrbLcInfoMap.insert (std::make_pair (slLcIdentifier, msu));
+  m_slLcToBearerMap.insert (std::make_pair (slLcIdentifier, static_cast<EpsBearer::Qci> (lcInfo.pqi)));
+
+  NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm elem;
+  std::map <uint8_t, std::map<NrSlUeBwpLcIdentifier, NrSlMacSapProvider*> >::iterator slCcLcMapIt;
+  NS_ASSERT_MSG (m_slBwpIds.size () != 0, "Did you forget to set BWP container from RRC");
+  for (const auto &itBwpIt : m_slBwpIds)
+    {
+      elem.bwpId =  itBwpIt;
+      elem.lcInfo = lcInfo;
+      elem.msu = m_nrSlBwpmUeMacSapUser;
+      res.insert (res.end (), elem);
+
+      slCcLcMapIt = m_nrSlBwpLcMap.find (elem.bwpId);
+      if (slCcLcMapIt != m_nrSlBwpLcMap.end ())
+        {
+          slCcLcMapIt->second.insert (std::make_pair (slLcIdentifier, m_nrSlMacSapProvidersMap.at (elem.bwpId)));
+        }
+      else
+        {
+          std::map<NrSlUeBwpLcIdentifier, NrSlMacSapProvider*> empty;
+          std::pair <std::map <uint8_t, std::map<NrSlUeBwpLcIdentifier, NrSlMacSapProvider*> >::iterator, bool> ret;
+          ret = m_nrSlBwpLcMap.insert (std::make_pair (elem.bwpId, empty));
+          ret.first->second.insert (std::make_pair (slLcIdentifier, m_nrSlMacSapProvidersMap.at (elem.bwpId)));
+        }
+    }
+  return res;
+}
+
 } // end of namespace ns3

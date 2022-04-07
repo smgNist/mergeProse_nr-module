@@ -41,6 +41,11 @@
 #include <ns3/net-device-container.h>
 #include <ns3/lte-rrc-sap.h>
 
+#include <ns3/nr-sl-helper.h>
+#include <ns3/nr-sl-ue-prose.h>
+
+#include <ns3/nr-sl-discovery-trace.h>
+
 namespace ns3 {
 
 class EpcTft;
@@ -56,7 +61,6 @@ class NrSlProseHelper : public Object
  * \brief Class to help in the configuration of the Proximity Service (ProSe)
  *        functionalities
  */
-
 public:
   /**
    * \brief Constructor
@@ -172,6 +176,63 @@ public:
                                     std::set<uint32_t> relayServiceCodes,
                                     EpsBearer bearer, Ptr<EpcTft> tft);
 
+  /**
+   * Starts discovery process for given applications depending on the interest (monitoring or announcing)
+   * \param ueDevice the targeted device
+   * \param appCode application code to be added
+   * \param dstL2Id destination layer 2 ID to be set for this appCode
+   * \param role UE role (discovered or discoveree)
+   */
+  void StartDiscoveryApp (Ptr<NetDevice> ueDevice, uint32_t appCode, uint32_t dstL2Id, NrSlUeProse::DiscoveryRole role);
+
+  /**
+   * Stops discovery process for given applications 
+   * \param ueDevice the targeted device
+   * \param appCode application code to be removed
+   * \param role UE role (discovered or discoveree)
+   */
+  void StopDiscoveryApp (Ptr<NetDevice> ueDevice, uint32_t appCode, NrSlUeProse::DiscoveryRole role);
+  
+  /**
+   * Starts discovery process for given applications depending on the interest (monitoring or announcing)
+   * \param ueDevice the targeted device
+   * \param appCodes application code to be added
+   * \param dstL2Ids destination layer 2 IDs to be set for each appCode
+   * \param role UE role (discovered or discoveree)
+   */
+  void StartDiscovery (Ptr<NetDevice> ueDevice, std::list<uint32_t> appCodes, std::list<uint32_t> dstL2Ids, NrSlUeProse::DiscoveryRole role);
+  
+  /**
+   * Stops discovery process for given applications 
+   * \param ueDevice the targeted device
+   * \param appCodes application codes to be removed
+   * \param role UE role (discovered or discoveree)
+   */
+  void StopDiscovery (Ptr<NetDevice> ueDevice, std::list<uint32_t> appCodes, NrSlUeProse::DiscoveryRole role);
+
+  /**
+   * Starts relay discovery process depending on the interest (relay or remote)
+   * \param ueDevice the targeted device
+   * \param relayCode relay code 
+   * \param dstL2Ids destination layer 2 ID
+   * \param model UE model (A or B)
+   * \param role UE role (relay or remote)
+   */
+  void StartRelayDiscovery (Ptr<NetDevice> ueDevice, uint32_t relayCode, uint32_t dstL2Id, NrSlUeProse::DiscoveryModel model, NrSlUeProse::DiscoveryRole role);
+  
+  /**
+   * Stops relay discovery process for given code
+   * \param ueDevice the targeted device
+   * \param relayCode relay code to be removed
+   * \param role UE role (relay or remote)
+   */
+  void StopRelayDiscovery (Ptr<NetDevice> ueDevice, uint32_t relayCode, NrSlUeProse::DiscoveryRole role);
+
+   /**
+   * Enable trace sinks for ProSe discovery
+   */
+  void EnableDiscoveryTraces (void);
+
 protected:
   /**
    * \brief \c DoDispose method inherited from \c Object
@@ -195,6 +256,8 @@ private:
   void PrepareSingleUeForUnicast (Ptr<NrUeNetDevice> nrUeDev);
 
   Ptr<NrPointToPointEpcHelper> m_epcHelper; //!< pointer to the EPC helper
+
+  Ptr<NrSlDiscoveryTrace> m_discoveryTrace; //!< Container of discovery traces.
 };
 
 }
