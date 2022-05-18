@@ -53,6 +53,11 @@ cpp_examples = [
     ("cttc-nr-v2x-demo-simple --simTag=testpy", "True", "True"),
     ("nr-prose-discovery", "True", "True"),
     ("nr-prose-discovery-relay", "True", "True"),
+    ("nr-prose-unicast-single-link", "True", "True"),
+    ("nr-prose-unicast-multi-link", "True", "True"),
+    ("nr-prose-network-coex", "True", "True"),
+    ("nr-prose-network-relay", "True", "True"),
+    ("nr-prose-relay-on-off", "True", "True"),
     ]
 
 # A list of Python examples to run in order to ensure that they remain

@@ -318,9 +318,6 @@ NrSlBwpManagerUe::DoAddNrSlSrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalCh
 {
   NS_LOG_FUNCTION (this);
 
-  //\todo At the moment this is just a C&P of DoAddNrSlDrbLc. TBD if having only one
-  //function and differentiate the behavior inside worth the implementation hassle
-
   //SL SRB LC form 0 to 3
   NS_ASSERT_MSG (lcInfo.lcId < 4, "Hey! This method can only add the LC for signalling radio bearers.");
   std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm> res;

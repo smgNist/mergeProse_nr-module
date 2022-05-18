@@ -179,8 +179,6 @@ protected:
    */
   std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm> DoAddNrSlSrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &lcInfo, NrSlMacSapUser* msu);
 
-  //TODO: Implement DoRemoveNrSlSrbLc
-
   /**
    * \brief Add a new NR Sidelink Signalling Radio Bearer Logical Channel (LC)
    *

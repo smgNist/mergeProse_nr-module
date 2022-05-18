@@ -99,24 +99,7 @@ public:
    * \param c The \c NetDeviceContainer
    */
   void PrepareUesForUnicast (NetDeviceContainer c);
-  /**
-   * \brief Establish a 5G ProSe direct link between the two UEs using an ideal protocol
-   *
-   * This method schedules the creation of the direct link instances in both UEs
-   * participating in the direct link. Then, the ProSe layer configures the direct
-   * link instances and starts the establishment procedure in the initiating UE.
-   * An ideal protocol means that PC5-S messages used for establishing and
-   * maintaining the direct link connection are delivered directly between
-   * direct link instances, as opposed to going through the protocol stack and
-   * being sent over the SL.
-   *
-   * \param time The time at which the direct link instances should be created
-   * \param initUe The UE initiating the establishment procedure
-   * \param initUeIp The IP address used by the initiating UE
-   * \param trgtUE The peer UE
-   * \param trgtUeIp The IP address used by the target UE
-   */
-  void EstablishIdealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp);
+
   /**
    * \brief Establish a 5G ProSe direct link between the two UEs using the real
    *        protocol

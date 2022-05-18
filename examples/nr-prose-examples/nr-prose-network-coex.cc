@@ -35,14 +35,10 @@
 
 
 /**
- * \file nr-prose-network-coex.cc
  * \ingroup examples
- *
+ * \file nr-prose-network-coex.cc
  * \brief Basic scenario with UEs doing in-network communication in parallel
  *        with UEs doing ProSe unicast direct communication over the sidelink.
- *
- * TODO: This is a toy example. If we keep it, consider adding input parameters
- *       and improving descriptions
  *
  * Channel configuration:
  * This example setup a simulation using the 3GPP channel model from TR 37.885
@@ -82,10 +78,15 @@
  *
  * Output:
  * The example will print on-screen the end-to-end statistics of each traffic
- * flow, as well as writing them on a file.
- * Also, Sidelink MAC and PHY layer traces as well as application layer traces
- * of the SL UEs are stored in a sqlite3 database using ns-3 stats module.
- *
+ * flow. It also produces three output files:
+ * 1. default-nr-prose-network-coex-flowMonitorOutput.txt: contain the
+ * statistics printed on the standard output.
+ * 2. default-nr-prose-network-coex-SlTraces.db: contains MAC and PHY layer
+ * traces in a sqlite3 database created using ns-3 stats module.
+ * 3. NrSlPc5SignallingPacketTrace.txt: log of the transmitted and received PC5
+ * signaling messages used for the establishment of each ProSe unicast direct
+ * link. 
+ * 
  * \code{.unparsed}
 $ ./waf --run "nr-prose-network-coex --Help"
     \endcode
@@ -110,8 +111,8 @@ $ ./waf --run "nr-prose-network-coex --Help"
 #include "ns3/point-to-point-module.h"
 #include "ns3/ideal-beamforming-algorithm.h"
 #include "ns3/antenna-module.h"
-
 #include <sqlite3.h>
+
 //Dependency of these nr-v2x-examples classes for SL statistics
 #include "../nr-v2x-examples/ue-mac-pscch-tx-output-stats.h"
 #include "../nr-v2x-examples/ue-mac-pssch-tx-output-stats.h"
@@ -155,6 +156,37 @@ UePacketTraceDb (UeToUePktTxRxOutputStats *stats, Ptr<Node> node, const Address 
 }
 /************************END Methods for tracing SL **************************/
 
+/*
+ * \brief Trace sink function for logging transmission and reception of PC5
+ *        signaling (PC5-S) messages
+ *
+ * \param stream the output stream wrapper where the trace will be written
+ * \param node the pointer to the UE node
+ * \param srcL2Id the L2 ID of the UE sending the PC5-S packet
+ * \param dstL2Id the L2 ID of the UE receiving the PC5-S packet
+ * \param isTx flag that indicates if the UE is transmitting the PC5-S packet
+ * \param p the PC5-S packet
+ */
+void
+TraceSinkPC5SignallingPacketTrace (Ptr<OutputStreamWrapper> stream,
+                                   Ptr<Node> node,
+                                   uint32_t srcL2Id, uint32_t dstL2Id, bool isTx, Ptr<Packet> p)
+{
+  NrSlPc5SignallingMessageType pc5smt;
+  p->PeekHeader (pc5smt);
+  *stream->GetStream () << Simulator::Now ().GetSeconds ()
+                        << "\t" << node->GetId ();
+  if (isTx)
+    {
+      *stream->GetStream () << "\t" << "TX";
+    }
+  else
+    {
+      *stream->GetStream () << "\t" << "RX";
+    }
+  *stream->GetStream () << "\t" << srcL2Id << "\t" << dstL2Id << "\t" << pc5smt.GetMessageName ();
+  *stream->GetStream () << std::endl;
+}
 
 int
 main (int argc, char *argv[])
@@ -174,7 +206,7 @@ main (int argc, char *argv[])
   uint16_t inNetUeNumPerGnb = 1;
   double gNbHeight = 10;
   double ueHeight = 1.5;
-  uint16_t numerologyCc0Bwp1 = 3; //                  BWP1 will be used for the network
+  uint16_t numerologyCc0Bwp1 = 3; //BWP1 will be used for the network
   double gNBtotalTxPower = 8; // dBm
   bool cellScan = false;  // Beamforming method.
   double beamSearchAngleStep = 10.0; // Beamforming parameter.
@@ -185,9 +217,8 @@ main (int argc, char *argv[])
   uint32_t lambdaUl = 100; // packets per second
   double inNetTrafficStartTime = 3.0; //seconds
 
-
   //Sidelink configuration
-  uint16_t numerologyCc0Bwp0 = 2; //(From SL examples)  BWP0 will be used for SL
+  uint16_t numerologyCc0Bwp0 = 2; //BWP0 will be used for SL
   uint16_t slUeNum = 2;
   uint16_t slInterUeDistance = 2; //m
   Time startDirLinkTime = Seconds (2.0); //Time to start the Prose Unicast Direct Link establishment procedure
@@ -292,12 +323,9 @@ main (int argc, char *argv[])
   nrHelper->SetBeamformingHelper (idealBeamformingHelper);
   nrHelper->SetEpcHelper (epcHelper);
 
-
   /*************************Spectrum division ****************************/
 
   BandwidthPartInfoPtrVector allBwps;
-  CcBwpCreator ccBwpCreator;
-
   OperationBandInfo band;
 
   /*
@@ -306,11 +334,9 @@ main (int argc, char *argv[])
    * |---------------CC0--------------|
    * |------BWP0------|------BWP1-----|
    */
-
   std::unique_ptr<ComponentCarrierInfo> cc0 (new ComponentCarrierInfo ());
   std::unique_ptr<BandwidthPartInfo> bwp0 (new BandwidthPartInfo ());
   std::unique_ptr<BandwidthPartInfo> bwp1 (new BandwidthPartInfo ());
-
 
   band.m_centralFrequency  = centralFrequencyBand;
   band.m_channelBandwidth = bandwidthBand;
@@ -347,7 +373,6 @@ main (int argc, char *argv[])
   band.AddCc (std::move (cc0));
 
   /********************* END Spectrum division ****************************/
-
 
   nrHelper->SetPathlossAttribute ("ShadowingEnabled", BooleanValue (false));
   epcHelper->SetAttribute ("S1uLinkDelay", TimeValue (MilliSeconds (0)));
@@ -399,7 +424,7 @@ main (int argc, char *argv[])
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
   nrHelper->SetUeMacAttribute ("ReservationPeriod", TimeValue (MilliSeconds (10)));
-  nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (255)); //TODO: I was 4, I increased it because we hit an error where no HARQ processes were available
+  nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (255));
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
   nrHelper->SetUeMacAttribute ("SlThresPsschRsrp", IntegerValue (-128));
 
@@ -549,7 +574,6 @@ main (int argc, char *argv[])
   nrSlHelper->InstallNrSlPreConfiguration (slUeNetDev, slPreConfigNr);
 
   /***END SL IEs configuration **/
-
 
   //Set random streams
   int64_t randomStream = 1;
@@ -711,10 +735,7 @@ main (int argc, char *argv[])
   clientApps.Start (Seconds (inNetTrafficStartTime));
   serverApps.Stop (Seconds (simTime));
   clientApps.Stop (Seconds (simTime));
-
   /********* END In-network applications configuration ******/
-
-
 
   /******************* SL application configuration *****************************/
   /* - Client app: OnOff application configured to generate CBR traffic.
@@ -776,14 +797,12 @@ main (int argc, char *argv[])
   slServerApps = sidelinkSink.Install (slUeNodes);  // Installed in all UEs
   slServerApps.Start (Seconds (1.0));
   slServerApps.Stop (Seconds (simTime));
-
   /******************** End SL application configuration ************************/
 
 
   /************ SL traces database setup *************************************/
-
   std::string exampleName = simTag + "-" + "nr-prose-network-coex";
-  SQLiteOutput db (outputDir + exampleName + "SLtraces.db", exampleName);
+  SQLiteOutput db (outputDir + exampleName + "-SlTraces.db", exampleName);
 
   UeMacPscchTxOutputStats pscchStats;
   pscchStats.SetDb (&db, "pscchTxUeMac");
@@ -794,7 +813,6 @@ main (int argc, char *argv[])
   psschStats.SetDb (&db, "psschTxUeMac");
   Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/SlPsschScheduling",
                                  MakeBoundCallback (&NotifySlPsschScheduling, &psschStats));
-
 
   UePhyPscchRxOutputStats pscchPhyStats;
   pscchPhyStats.SetDb (&db, "pscchRxUePhy");
@@ -820,8 +838,21 @@ main (int argc, char *argv[])
       Ipv4Address localAddrs =  slServerApps.Get (ac)->GetNode ()->GetObject<Ipv4L3Protocol> ()->GetAddress (1,0).GetLocal ();
       slServerApps.Get (ac)->TraceConnect ("RxWithSeqTsSize", "rx", MakeBoundCallback (&UePacketTraceDb, &pktStats, slServerApps.Get (ac)->GetNode (), localAddrs));
     }
-
   /************ END SL traces database setup *************************************/
+
+  /******************* PC5-S messages tracing ********************************/
+  AsciiTraceHelper ascii;
+  Ptr<OutputStreamWrapper> Pc5SignallingPacketTraceStream = ascii.CreateFileStream ("NrSlPc5SignallingPacketTrace.txt");
+  *Pc5SignallingPacketTraceStream->GetStream () << "time(s)\tnodeId\tTX/RX\tsrcL2Id\tdstL2Id\tmsgType" << std::endl;
+  for (uint32_t i = 0; i < slUeNetDev.GetN (); ++i)
+  {
+	  Ptr<NrSlUeProse> prose = slUeNetDev.Get (i)->GetObject<NrUeNetDevice> ()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+	  prose->TraceConnectWithoutContext ("PC5SignallingPacketTrace",
+			  MakeBoundCallback (&TraceSinkPC5SignallingPacketTrace,
+					  Pc5SignallingPacketTraceStream,
+					  slUeNetDev.Get (i)->GetNode ()));
+  }
+  /******************* END PC5-S messages tracing **************************/
 
   //Configure FlowMonitor to get traffic flow statistics
   FlowMonitorHelper flowmonHelper;
@@ -852,7 +883,7 @@ main (int argc, char *argv[])
   FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats ();
 
   std::ofstream outFile;
-  std::string filename = outputDir + "/" + simTag;
+  std::string filename = outputDir + "/" + exampleName + "-flowMonitorOutput.txt";
   outFile.open (filename.c_str (), std::ofstream::out | std::ofstream::trunc);
   if (!outFile.is_open ())
     {
@@ -879,14 +910,12 @@ main (int argc, char *argv[])
       double appDuration = 0;
       if ( t.destinationPort == 8000) //SL
         {
-          appDuration = simTime - slTrafficStartTime.GetSeconds ();
-          //TODO Some inaccuracy is expected due to randomization of start time.
+          appDuration = simTime - slTrafficStartTime.GetSeconds (); //Some inaccuracy is expected due to randomization of start time.
         }
       else
         {
           appDuration = simTime - inNetTrafficStartTime;
         }
-
       outFile << "Flow " << i->first << " (" << t.sourceAddress << ":" << t.sourcePort << " -> " << t.destinationAddress << ":" << t.destinationPort << ") " << protoStream.str () << "\n";
       outFile << "  Tx Packets: " << i->second.txPackets << "\n";
       outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
@@ -895,8 +924,6 @@ main (int argc, char *argv[])
       outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
       if (i->second.rxPackets > 0)
         {
-
-
           outFile << "  Throughput: " << i->second.rxBytes * 8.0 / appDuration / 1000 / 1000  << " Mbps\n";
           outFile << "  Mean delay:  " << 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets << " ms\n";
           outFile << "  Mean jitter:  " << 1000 * i->second.jitterSum.GetSeconds () / i->second.rxPackets  << " ms\n";

@@ -1704,9 +1704,6 @@ NrUeMac::DoReceivePsschPhyPdu (Ptr<PacketBurst> pdu)
       identifier.srcL2Id = sciF2a.GetSrcId ();
       identifier.dstL2Id = sciF2a.GetDstId ();
 
-      NS_LOG_INFO ("--->" << m_nrSlLcInfoMap.size() << " lcId " <<+identifier.lcId <<
-          " srcL2Id " << identifier.srcL2Id << " dstL2Id " << identifier.dstL2Id);
-
       std::map <SidelinkLcIdentifier, SlLcInfoUeMac>::iterator it = m_nrSlLcInfoMap.find (identifier);
       if (it == m_nrSlLcInfoMap.end ())
         {

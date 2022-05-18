@@ -39,11 +39,8 @@
  * \ingroup examples
  *
  * \brief Basic scenario with some UEs doing in-network communication, some UEs
- *        doing PoSe unicast communication over SL and in-network communication
- *        through a L3 UE-to-Network (U2N) relay UE.
- *
- * TODO: This is a toy example. If we keep it, consider adding input parameters
- *       and improving descriptions
+ *        doing PoSe unicast communication over SL and also in-network
+ *        communication through a L3 UE-to-Network (U2N) relay UE.
  *
  * Channel configuration:
  * This example setup a simulation using the 3GPP channel model from TR 37.885
@@ -104,13 +101,21 @@
  *
  * Output:
  * The example will print on-screen the traffic flows configuration and the
- * end-to-end statistics of each of them after the simulation finishes. The
- * statistics are written on a file as well. Also, Sidelink MAC and PHY layer
- * traces as well as application layer traces of the UEs doing SL are stored
- * in a sqlite3 database using ns-3 stats module.
+ * end-to-end statistics of each of them after the simulation finishes together
+ * with the number of packets relayed by the L3 UE-to-Network relay.
+ * The example also produces three output files:
+ * 1. default-nr-prose-network-relay-flowMonitorOutput.txt" Contains the
+ * end-to-end statistics of each traffic flow.
+ * 2. default-nr-prose-network-relay-SlTraces.db: contains MAC and PHY layer
+ * traces in a sqlite3 database created using ns-3 stats module.
+ * 3. NrSlPc5SignallingPacketTrace.txt: log of the transmitted and received PC5
+ * signaling messages used for the establishment of each ProSe unicast direct
+ * link.
+ * 4. NrSlRelayNasRxPacketTrace.txt: log of the packets received and routed by
+ * the NAS of the UE acting as L3 UE-to-Network UE.
  *
  * \code{.unparsed}
-$ ./waf --run "nr-prose-network-relay--Help"
+$ ./waf --run "nr-prose-network-relay --Help"
     \endcode
  */
 
@@ -136,9 +141,8 @@ $ ./waf --run "nr-prose-network-relay--Help"
 #include <ns3/nr-sl-pc5-signalling-header.h>
 #include <ns3/nr-sl-ue-prose.h>
 #include <ns3/epc-ue-nas.h>
-
-
 #include <sqlite3.h>
+
 //Dependency of these nr-v2x-examples classes for SL statistics
 #include "../nr-v2x-examples/ue-mac-pscch-tx-output-stats.h"
 #include "../nr-v2x-examples/ue-mac-pssch-tx-output-stats.h"
@@ -184,10 +188,19 @@ UePacketTraceDb (UeToUePktTxRxOutputStats *stats, Ptr<Node> node, const Address 
 
 
 /*
- * Trace sink function for logging transmission and reception of PC5 signaling (PC5-S) messages
+ * \brief Trace sink function for logging transmission and reception of PC5
+ *        signaling (PC5-S) messages
+ *
+ * \param stream the output stream wrapper where the trace will be written
+ * \param node the pointer to the UE node
+ * \param srcL2Id the L2 ID of the UE sending the PC5-S packet
+ * \param dstL2Id the L2 ID of the UE receiving the PC5-S packet
+ * \param isTx flag that indicates if the UE is transmitting the PC5-S packet
+ * \param p the PC5-S packet
  */
 void
-TraceSinkPC5SignallingPacketTrace (Ptr<OutputStreamWrapper> stream, uint32_t srcL2Id, uint32_t dstL2Id, bool isTx, Ptr<Packet> p)
+TraceSinkPC5SignallingPacketTrace (Ptr<OutputStreamWrapper> stream,
+                                   uint32_t srcL2Id, uint32_t dstL2Id, bool isTx, Ptr<Packet> p)
 {
   NrSlPc5SignallingMessageType pc5smt;
   p->PeekHeader (pc5smt);
@@ -206,9 +219,17 @@ TraceSinkPC5SignallingPacketTrace (Ptr<OutputStreamWrapper> stream, uint32_t src
 
 std::map<std::string, uint32_t> g_relayNasPacketCounter;
 
-
 /*
- * Trace sink function for logging reception of data packets in the NAS layer by UE(s) acting as relay UE
+ * \brief Trace sink function for logging reception of data packets in the NAS
+ *        layer by UE(s) acting as relay UE
+ *
+ * \param stream the output stream wrapper where the trace will be written
+ * \param nodeIp the IP of the relay UE
+ * \param srcIp the IP of the node sending the packet
+ * \param dstIp the IP of the node that would be receiving the packet
+ * \param srcLink the link from which the relay UE received the packet (UL, DL, or SL)
+ * \param dstLink the link towards which the relay routed the packet (UL, DL, or SL)
+ * \param p the packet
  */
 void
 TraceSinkRelayNasRxPacketTrace (Ptr<OutputStreamWrapper> stream,
@@ -265,7 +286,6 @@ main (int argc, char *argv[])
   uint32_t lambdaUl = 50; // packets per second
   double inNetTrafficStartTime = 5.0; //seconds
 
-
   //Sidelink configuration
   uint16_t numerologyCc0Bwp1 = 2; //(From SL examples)  BWP1 will be used for SL
   uint16_t slUeNum = 2;
@@ -294,7 +314,6 @@ main (int argc, char *argv[])
   cmd.Parse (argc, argv);
 
   NS_ABORT_IF (numBands < 1);
-
 
   //Setup large enough buffer size to avoid overflow
   Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
@@ -493,7 +512,7 @@ main (int argc, char *argv[])
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
   nrHelper->SetUeMacAttribute ("ReservationPeriod", TimeValue (MilliSeconds (10)));
-  nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (255)); //TODO: I was 4, I increased it because we hit an error where no HARQ processes were available
+  nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (255));
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
   nrHelper->SetUeMacAttribute ("SlThresPsschRsrp", IntegerValue (-128));
 
@@ -501,7 +520,6 @@ main (int argc, char *argv[])
   uint8_t bwpIdSl = 1;
   nrHelper->SetBwpManagerTypeId (TypeId::LookupByName ("ns3::NrSlBwpManagerUe"));
   nrHelper->SetUeBwpManagerAlgorithmAttribute ("GBR_MC_PUSH_TO_TALK", UintegerValue (bwpIdSl));
-
 
   //Install both BWPs on U2N relays
   NetDeviceContainer relayUeNetDev = nrHelper->InstallUeDevice (relayUeNodes, allBwps);
@@ -680,7 +698,6 @@ main (int argc, char *argv[])
   randomStream += nrHelper->AssignStreams (slUeNetDev, randomStream);
   randomStream += nrSlHelper->AssignStreams (slUeNetDev, randomStream);
 
-
   // create the internet and install the IP stack on the UEs
   // get SGW/PGW and create a single RemoteHost
   Ptr<Node> pgw = epcHelper->GetPgwNode ();
@@ -707,7 +724,6 @@ main (int argc, char *argv[])
   std::cout << "IP configuration: " << std::endl;
   std::cout << " Remote Host: " << remoteHostAddr << std::endl;
 
-
   // Configure in-network only UEs
   internet.Install (inNetUeNodes);
   Ipv4InterfaceContainer ueIpIface;
@@ -719,7 +735,6 @@ main (int argc, char *argv[])
         ipv4RoutingHelper.GetStaticRouting (inNetUeNodes.Get (j)->GetObject<Ipv4> ());
       ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
       std::cout << " In-network only UE: " << inNetUeNodes.Get (j)->GetObject<Ipv4L3Protocol> ()->GetAddress (1,0).GetLocal () << std::endl;
-
     }
 
   //Attach in-network UEs to the closest gNB
@@ -783,7 +798,6 @@ main (int argc, char *argv[])
   //to a lower value than the standard (8.0 s) to speed connection in shorter simulation time
   Config::SetDefault ("ns3::NrSlUeProseDirectLink::T5080", TimeValue (Seconds (2.0)));
 
-
   /*
    * Setup the start of the ProSe direct link establishment procedure
    * (with the 'Real' protocol, PC5-S messages are exchanged over the SL)
@@ -801,10 +815,8 @@ main (int argc, char *argv[])
                                                     slUeNetDev.Get (i), slIpv4AddressVector [i],  // Initiating UE
                                                     slUeNetDev.Get (j), slIpv4AddressVector [j]); // Target UE
           NS_LOG_INFO ("Initiating UE nodeId " << i << " target UE nodeId " << j );
-
         }
     }
-
   /******** END Configure ProSe layer in the UEs that will do SL  **********/
 
 
@@ -842,10 +854,7 @@ main (int argc, char *argv[])
           NS_LOG_INFO ("Remote UE nodeId " << i << " Relay UE nodeId " << j);
         }
     }
-
-
   /******************** END L3 U2N Relay configuration ***********************/
-
 
   /********* In-network only applications configuration ******/
   // install UDP applications
@@ -883,7 +892,6 @@ main (int argc, char *argv[])
       EpsBearer bearerDl (qDl);
       nrHelper->ActivateDedicatedEpsBearer (inNetUeNetDev.Get (u), bearerDl, tftDl);
 
-
       // UL traffic
       PacketSinkHelper ulPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), ulPort));
       serverApps.Add (ulPacketSinkHelper.Install (remoteHost));
@@ -911,7 +919,7 @@ main (int argc, char *argv[])
       nrHelper->ActivateDedicatedEpsBearer (inNetUeNetDev.Get (u), bearerUl, tftUl);
     }
 
-  //RELAY UEs OWN IN-NETWORK TRAFFIC
+  //RELAY UE's OWN IN-NETWORK TRAFFIC
   for (uint32_t u = 0; u < relayUeNodes.GetN (); ++u)
     {
       //DL traffic
@@ -1030,7 +1038,6 @@ main (int argc, char *argv[])
   clientApps.Start (Seconds (inNetTrafficStartTime));
   serverApps.Stop (Seconds (simTime));
   clientApps.Stop (Seconds (simTime));
-
   /********* END In-network only applications configuration ******/
 
 
@@ -1095,12 +1102,10 @@ main (int argc, char *argv[])
   slServerApps = sidelinkSink.Install (NodeContainer (slUeNodes, relayUeNodes));  // Installed in all UEs
   slServerApps.Start (Seconds (1.0));
   slServerApps.Stop (Seconds (simTime));
-
   /******************** End SL application configuration ************************/
 
 
   /******************* PC5-S messages tracing ********************************/
-
   AsciiTraceHelper ascii;
   Ptr<OutputStreamWrapper> Pc5SignallingPacketTraceStream = ascii.CreateFileStream ("NrSlPc5SignallingPacketTrace.txt");
   *Pc5SignallingPacketTraceStream->GetStream () << "time(s)\tTX/RX\tsrcL2Id\tdstL2Id\tmsgType" << std::endl;
@@ -1131,12 +1136,9 @@ main (int argc, char *argv[])
                                                                RelayNasRxPacketTraceStream));
     }
 
-
-
   /************ SL traces database setup *************************************/
-
   std::string exampleName = simTag + "-" + "nr-prose-network-relay";
-  SQLiteOutput db (outputDir + exampleName + "-SLtraces.db", exampleName);
+  SQLiteOutput db (outputDir + exampleName + "-SlTraces.db", exampleName);
 
   UeMacPscchTxOutputStats pscchStats;
   pscchStats.SetDb (&db, "pscchTxUeMac");
@@ -1173,10 +1175,7 @@ main (int argc, char *argv[])
       Ipv4Address localAddrs =  slServerApps.Get (ac)->GetNode ()->GetObject<Ipv4L3Protocol> ()->GetAddress (1,0).GetLocal ();
       slServerApps.Get (ac)->TraceConnect ("RxWithSeqTsSize", "rx", MakeBoundCallback (&UePacketTraceDb, &pktStats, slServerApps.Get (ac)->GetNode (), localAddrs));
     }
-
   /************ END SL traces database setup *************************************/
-
-  nrHelper->EnableTraces ();
 
   //Configure FlowMonitor to get traffic flow statistics
   FlowMonitorHelper flowmonHelper;
@@ -1208,7 +1207,7 @@ main (int argc, char *argv[])
   FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats ();
 
   std::ofstream outFile;
-  std::string filename = outputDir + "/" + simTag;
+  std::string filename = outputDir + "/" + exampleName + "-flowMonitorOutput.txt";
   outFile.open (filename.c_str (), std::ofstream::out | std::ofstream::trunc);
   if (!outFile.is_open ())
     {
@@ -1235,8 +1234,7 @@ main (int argc, char *argv[])
       double appDuration = 0;
       if ( t.destinationPort == 8000) //SL
         {
-          appDuration = simTime - slTrafficStartTime.GetSeconds ();
-          //TODO Some inaccuracy is expected due to randomization of start time.
+          appDuration = simTime - slTrafficStartTime.GetSeconds (); // Some inaccuracy is expected due to randomization of start time.
         }
       else
         {

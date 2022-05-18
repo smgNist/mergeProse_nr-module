@@ -150,7 +150,6 @@ NrSlProseHelper::PrepareSingleUeForUnicast (Ptr<NrUeNetDevice> nrUeDev)
   nrSlUeProse->ConfigureUnicast ();
 }
 
-
 void
 NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp)
 {
@@ -178,31 +177,6 @@ NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4
 
   //Target UE
   Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp, initUeL2Id, false, false, 0);
-
-}
-
-
-void
-NrSlProseHelper::EstablishIdealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp)
-{
-  NS_LOG_FUNCTION (this);
-  NS_FATAL_ERROR ("This functionality is not implemented yet! ");
-
-  Ptr<NrUeNetDevice> initUeNetDev = initUe->GetObject <NrUeNetDevice>();
-  Ptr<NrUeNetDevice> trgtUeNetDev = trgtUe->GetObject <NrUeNetDevice>();
-  Ptr<NrSlUeProse> initUeProse = initUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
-  Ptr<NrSlUeProse> trgtUeProse = trgtUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
-  Ptr<LteUeRrc> initUeRrc = initUeNetDev->GetRrc ();
-  Ptr<LteUeRrc> trgtUeRrc = trgtUeNetDev->GetRrc ();
-
-  uint32_t initUeL2Id = initUeRrc->GetSourceL2Id ();
-  uint32_t trgtUeL2Id = trgtUeRrc->GetSourceL2Id ();
-
-
-  initUeProse->AddDirectLinkConnection (initUeL2Id, initUeIp, trgtUeL2Id, true, false, 0);
-  trgtUeProse->AddDirectLinkConnection (trgtUeL2Id, trgtUeIp, initUeL2Id, false, false, 0);
-  //Now we connect the appropriated  SAPs of both NrSlUeProseDirLink to each other
-  //TODO!
 
 }
 
@@ -263,7 +237,7 @@ NrSlProseHelper::ConfigureL3UeToNetworkRelay (NetDeviceContainer relayUeDevices,
           uint8_t relayDrbId = m_epcHelper->ActivateEpsBearer (*devIt, imsi, tft, bearer);
           NrSlUeProse::NrSlL3U2nServiceConfiguration config;
           config.relayDrbId = relayDrbId;
-          prose->AddU2nRelayServiceConfiguration (*it, config);
+          prose->AddL3U2nRelayServiceConfiguration (*it, config);
         }
       //Set EPC Helper pointer on the ProSe layer, which is used to configure
       //data path in the EpcPgwApplication when a remote UE successfully connects to this relay UE)

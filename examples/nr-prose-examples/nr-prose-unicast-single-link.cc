@@ -68,10 +68,14 @@
  *
  *
  * Output:
- * The example will print on-screen the average Packet Inter-Reception (PIR)
- * type 2 computed as defined in 37.885. Moreover, it saves MAC and PHY layer
- * traces in a sqlite3 database using ns-3 stats module. Moreover, since there
- * is only one transmitter in the scenario, sensing is by default not enabled.
+ * The example will print on the standard output the average Packet 
+ * Inter-Reception (PIR) type 2 computed as defined in 37.885. 
+ * The example also produces two output files:
+ * 1. default-nr-prose-unicast-single-link.db: contains MAC and PHY layer
+ * traces in a sqlite3 database created using ns-3 stats module.
+ * 2. NrSlPc5SignallingPacketTrace.txt: log of the transmitted and received PC5
+ * signaling messages used for the establishment of the ProSe unicast direct
+ * link.
  *
  * Please refer to the cttc-nr-v2x-demo-simple.cc example for a nice tutorial
  * of scenario setup and NR sidelink configuration
@@ -225,7 +229,7 @@ void TransmitPacket (Ptr<const Packet> packet)
 }
 
 /*
- * Global variable used to compute PIR
+ * Global variables used to compute PIR
  */
 uint64_t pirCounter = 0;
 Time lastPktRxTime;
@@ -250,12 +254,41 @@ void ComputePir (Ptr<const Packet> packet, const Address &from)
   pirCounter++;
 }
 
-
+/*
+ * \brief Trace sink function for logging transmission and reception of PC5
+ *        signaling (PC5-S) messages
+ *
+ * \param stream the output stream wrapper where the trace will be written
+ * \param node the pointer to the UE node
+ * \param srcL2Id the L2 ID of the UE sending the PC5-S packet
+ * \param dstL2Id the L2 ID of the UE receiving the PC5-S packet
+ * \param isTx flag that indicates if the UE is transmitting the PC5-S packet
+ * \param p the PC5-S packet
+ */
+void
+TraceSinkPC5SignallingPacketTrace (Ptr<OutputStreamWrapper> stream,
+                                   Ptr<Node> node,
+                                   uint32_t srcL2Id, uint32_t dstL2Id, bool isTx, Ptr<Packet> p)
+{
+  NrSlPc5SignallingMessageType pc5smt;
+  p->PeekHeader (pc5smt);
+  *stream->GetStream () << Simulator::Now ().GetSeconds ()
+                        << "\t" << node->GetId ();
+  if (isTx)
+    {
+      *stream->GetStream () << "\t" << "TX";
+    }
+  else
+    {
+      *stream->GetStream () << "\t" << "RX";
+    }
+  *stream->GetStream () << "\t" << srcL2Id << "\t" << dstL2Id << "\t" << pc5smt.GetMessageName ();
+  *stream->GetStream () << std::endl;
+}
 
 int
 main (int argc, char *argv[])
 {
-
   //Topology parameters
   uint16_t interUeDistance = 20; //meters
 
@@ -268,7 +301,6 @@ main (int argc, char *argv[])
   Time startDirLinkTime = Seconds (2.0); //Time to start the Prose Unicast Direct Link establishment procedure
   Time startTrafficTime = Seconds (2.1); //Time to start the traffic in the application layer
 
-
   // NR parameters
   uint16_t numerologyBwpSl = 2; //The numerology to be used in sidelink bandwidth part
   double centralFrequencyBandSl = 5.89e9; // band n47  TDD //Here band is analogous to channel
@@ -278,7 +310,6 @@ main (int argc, char *argv[])
   // Where we will store the output files.
   std::string simTag = "default";
   std::string outputDir = "./";
-
 
   CommandLine cmd;
 
@@ -318,7 +349,6 @@ main (int argc, char *argv[])
   cmd.AddValue ("outputDir",
                 "directory where to store simulation results",
                 outputDir);
-
 
   // Parse the command line
   cmd.Parse (argc, argv);
@@ -387,10 +417,8 @@ main (int argc, char *argv[])
   nrHelper->InitializeOperationBand (&bandSl);
   allBwps = CcBwpCreator::GetAllBwps ({bandSl});
 
-
   Packet::EnableChecking ();
   Packet::EnablePrinting ();
-
 
   // Core latency
   epcHelper->SetAttribute ("S1uLinkDelay", TimeValue (MilliSeconds (0)));
@@ -436,7 +464,6 @@ main (int argc, char *argv[])
     {
       DynamicCast<NrUeNetDevice> (*it)->UpdateConfig ();
     }
-
 
   /*Create NrSlHelper which will configure the UEs protocol stack to be ready to
    *perform Sidelink related procedures
@@ -582,7 +609,6 @@ main (int argc, char *argv[])
   stream += nrHelper->AssignStreams (ueVoiceNetDev, stream);
   stream += nrSlHelper->AssignStreams (ueVoiceNetDev, stream);
 
-
   /*
    * Configure the IPv4 stack
    */
@@ -679,7 +705,7 @@ main (int argc, char *argv[])
   Config::ConnectWithoutContext (path.str (), MakeCallback (&TransmitPacket));
   path.str ("");
 
-  //Datebase setup
+  //Database setup
   std::string exampleName = simTag + "-" + "nr-prose-unicast-single-link";
   SQLiteOutput db (outputDir + exampleName + ".db", exampleName);
 
@@ -723,6 +749,20 @@ main (int argc, char *argv[])
       serverApps.Get (ac)->TraceConnect ("RxWithSeqTsSize", "rx", MakeBoundCallback (&UePacketTraceDb, &pktStats, ueVoiceContainer.Get (1), localAddrs));
     }
 
+  /******************* PC5-S messages tracing ********************************/
+  AsciiTraceHelper ascii;
+  Ptr<OutputStreamWrapper> Pc5SignallingPacketTraceStream = ascii.CreateFileStream ("NrSlPc5SignallingPacketTrace.txt");
+  *Pc5SignallingPacketTraceStream->GetStream () << "time(s)\tnodeId\tTX/RX\tsrcL2Id\tdstL2Id\tmsgType" << std::endl;
+  for (uint32_t i = 0; i < ueVoiceNetDev.GetN (); ++i)
+  {
+	  Ptr<NrSlUeProse> prose = ueVoiceNetDev.Get (i)->GetObject<NrUeNetDevice> ()->GetSlUeService ()->GetObject <NrSlUeProse> ();
+	  prose->TraceConnectWithoutContext ("PC5SignallingPacketTrace",
+			  MakeBoundCallback (&TraceSinkPC5SignallingPacketTrace,
+					  Pc5SignallingPacketTraceStream,
+					  ueVoiceNetDev.Get (i)->GetNode ()));
+  }
+  /******************* END PC5-S messages tracing **************************/
+
   Simulator::Stop (simTime);
   Simulator::Run ();
 
@@ -745,7 +785,6 @@ main (int argc, char *argv[])
   psschStats.EmptyCache ();
   pscchPhyStats.EmptyCache ();
   psschPhyStats.EmptyCache ();
-
 
   Simulator::Destroy ();
   return 0;
