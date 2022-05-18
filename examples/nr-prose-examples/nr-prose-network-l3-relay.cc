@@ -35,7 +35,7 @@
 
 
 /**
- * \file nr-prose-network-relay.cc
+ * \file nr-prose-network-l3-relay.cc
  * \ingroup examples
  *
  * \brief Basic scenario with some UEs doing in-network communication, some UEs
@@ -104,9 +104,9 @@
  * end-to-end statistics of each of them after the simulation finishes together
  * with the number of packets relayed by the L3 UE-to-Network relay.
  * The example also produces three output files:
- * 1. default-nr-prose-network-relay-flowMonitorOutput.txt" Contains the
+ * 1. default-nr-prose-network-l3-relay-flowMonitorOutput.txt" Contains the
  * end-to-end statistics of each traffic flow.
- * 2. default-nr-prose-network-relay-SlTraces.db: contains MAC and PHY layer
+ * 2. default-nr-prose-network-l3-relay-SlTraces.db: contains MAC and PHY layer
  * traces in a sqlite3 database created using ns-3 stats module.
  * 3. NrSlPc5SignallingPacketTrace.txt: log of the transmitted and received PC5
  * signaling messages used for the establishment of each ProSe unicast direct
@@ -115,7 +115,7 @@
  * the NAS of the UE acting as L3 UE-to-Network UE.
  *
  * \code{.unparsed}
-$ ./waf --run "nr-prose-network-relay --Help"
+$ ./waf --run "nr-prose-network-l3-relay --Help"
     \endcode
  */
 
@@ -1137,7 +1137,7 @@ main (int argc, char *argv[])
     }
 
   /************ SL traces database setup *************************************/
-  std::string exampleName = simTag + "-" + "nr-prose-network-relay";
+  std::string exampleName = simTag + "-" + "nr-prose-network-l3-relay";
   SQLiteOutput db (outputDir + exampleName + "-SlTraces.db", exampleName);
 
   UeMacPscchTxOutputStats pscchStats;
