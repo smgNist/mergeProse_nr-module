@@ -379,7 +379,7 @@ main (int argc, char *argv[])
   //SlResourcePoolNr IE
   LteRrcSap::SlResourcePoolNr slResourcePoolNr;
   //get it from pool factory
-  Ptr<NrSlCommPreconfigResourcePoolFactory> ptrFactory = Create<NrSlCommPreconfigResourcePoolFactory> ();
+  Ptr<NrSlCommResourcePoolFactory> ptrFactory = Create<NrSlCommResourcePoolFactory> ();
   //Configure specific parameters of interest:
   std::vector <std::bitset<1> > slBitmap = {1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1};
   ptrFactory->SetSlTimeResources (slBitmap);
