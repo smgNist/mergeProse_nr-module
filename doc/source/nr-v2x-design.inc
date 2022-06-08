@@ -344,7 +344,7 @@ and assumes no interference from the UEs served by the same gNB. Transmissions
 from other gNBs/UEs are simply considered as interference. In case of sidelink,
 especially in broadcast or groupcast, a UE is interested in transmitting to or
 receiving from multiple surrounding UEs. In this context, UEs in out-of-coverage
-scenarios or ``UE-selected'' mode can select the same (or overlapping) resources
+scenarios or ``UE-selected`` mode can select the same (or overlapping) resources
 because the allocation is uncoordinated. Therefore, to determine which packet
 will be successfully decoded, the new implementation keeps track of the SINR
 values for each sidelink transmission.

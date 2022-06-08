@@ -782,18 +782,18 @@ NrUePhy::DlCtrl(const std::shared_ptr<DciInfoElementTdma> &dci)
 {
   NS_LOG_FUNCTION (this);
 
-  Time varTtiPeriod = GetSymbolPeriod () * dci->m_numSym;
+  Time varTtiDuration = GetSymbolPeriod () * dci->m_numSym;
 
   NS_LOG_DEBUG ("UE" << m_rnti <<
                 " RXing DL CTRL frame for"
                 " symbols "  << +dci->m_symStart <<
                 "-" << +(dci->m_symStart + dci->m_numSym - 1) <<
                 "\t start " << Simulator::Now () <<
-                " end " << (Simulator::Now () + varTtiPeriod));
+                " end " << (Simulator::Now () + varTtiDuration));
 
   m_tryToPerformLbt = true;
 
-  return varTtiPeriod;
+  return varTtiDuration;
 }
 
 
@@ -813,18 +813,18 @@ NrUePhy::UlSrs (const std::shared_ptr<DciInfoElementTdma> &dci)
   Ptr<NrSrsMessage> srs = Create<NrSrsMessage> ();
   srs->SetSourceBwp (GetBwpId());
   srsMsg.push_back (srs);
-  Time varTtiPeriod = GetSymbolPeriod () * dci->m_numSym;
+  Time varTtiDuration = GetSymbolPeriod () * dci->m_numSym;
 
-  m_spectrumPhy->StartTxUlControlFrames (srsMsg, varTtiPeriod - NanoSeconds (1.0));
+  m_spectrumPhy->StartTxUlControlFrames (srsMsg, varTtiDuration - NanoSeconds (1.0));
 
   NS_LOG_DEBUG ("UE" << m_rnti << " TXing UL SRS frame for symbols " <<
                   +dci->m_symStart << "-" <<
                   +(dci->m_symStart + dci->m_numSym - 1) <<
                   "\t start " << Simulator::Now () << " end " <<
-                  (Simulator::Now () + varTtiPeriod - NanoSeconds (1.0)));
+                  (Simulator::Now () + varTtiDuration - NanoSeconds (1.0)));
 
   ChannelAccessDenied (); // Reset the channel status
-  return varTtiPeriod;
+  return varTtiDuration;
 }
 
 Time
@@ -832,7 +832,7 @@ NrUePhy::UlCtrl (const std::shared_ptr<DciInfoElementTdma> &dci)
 {
   NS_LOG_FUNCTION (this);
 
-  Time varTtiPeriod = GetSymbolPeriod () * dci->m_numSym;
+  Time varTtiDuration = GetSymbolPeriod () * dci->m_numSym;
 
   if (m_ctrlMsgs.size () == 0)
     {
@@ -840,16 +840,16 @@ NrUePhy::UlCtrl (const std::shared_ptr<DciInfoElementTdma> &dci)
                     +dci->m_symStart << "-" <<
                     +(dci->m_symStart + dci->m_numSym - 1) <<
                     "\t start " << Simulator::Now () << " end " <<
-                    (Simulator::Now () + varTtiPeriod - NanoSeconds (1.0)) <<
+                    (Simulator::Now () + varTtiDuration - NanoSeconds (1.0)) <<
                     " but no data to transmit");
       m_cam->Cancel ();
-      return varTtiPeriod;
+      return varTtiDuration;
     }
   else if (m_channelStatus != GRANTED)
     {
       NS_LOG_INFO ("UE" << m_rnti << " has to transmit CTRL but channel not granted");
       m_cam->Cancel ();
-      return varTtiPeriod;
+      return varTtiDuration;
     }
 
   for (const auto & msg : m_ctrlMsgs)
@@ -886,12 +886,12 @@ NrUePhy::UlCtrl (const std::shared_ptr<DciInfoElementTdma> &dci)
                 +dci->m_symStart << "-" <<
                 +(dci->m_symStart + dci->m_numSym - 1) <<
                 "\t start " << Simulator::Now () << " end " <<
-                (Simulator::Now () + varTtiPeriod - NanoSeconds (1.0)));
+                (Simulator::Now () + varTtiDuration - NanoSeconds (1.0)));
 
-  SendCtrlChannels (varTtiPeriod - NanoSeconds (1.0));
+  SendCtrlChannels (varTtiDuration - NanoSeconds (1.0));
 
   ChannelAccessDenied (); // Reset the channel status
-  return varTtiPeriod;
+  return varTtiDuration;
 }
 
 Time
@@ -900,7 +900,7 @@ NrUePhy::DlData (const std::shared_ptr<DciInfoElementTdma> &dci)
   NS_LOG_FUNCTION (this);
 
   m_receptionEnabled = true;
-  Time varTtiPeriod = GetSymbolPeriod () * dci->m_numSym;
+  Time varTtiDuration = GetSymbolPeriod () * dci->m_numSym;
 
   m_spectrumPhy->AddExpectedTb (dci->m_rnti, dci->m_ndi, dci->m_tbSize, dci->m_mcs,
                                         FromRBGBitmaskToRBAssignment (dci->m_rbgBitmask),
@@ -913,9 +913,9 @@ NrUePhy::DlData (const std::shared_ptr<DciInfoElementTdma> &dci)
                 "-" << +(dci->m_symStart + dci->m_numSym - 1) <<
                 " num of rbg assigned: " << FromRBGBitmaskToRBAssignment (dci->m_rbgBitmask).size () <<
                 "\t start " << Simulator::Now () <<
-                " end " << (Simulator::Now () + varTtiPeriod));
+                " end " << (Simulator::Now () + varTtiDuration));
 
-  return varTtiPeriod;
+  return varTtiDuration;
 }
 
 Time
@@ -927,7 +927,7 @@ NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma> &dci)
       m_txPower = m_powerControl->GetPuschTxPower ((FromRBGBitmaskToRBAssignment(dci->m_rbgBitmask)).size());
     }
   SetSubChannelsForTransmission (FromRBGBitmaskToRBAssignment (dci->m_rbgBitmask), dci->m_numSym);
-  Time varTtiPeriod = GetSymbolPeriod () * dci->m_numSym;
+  Time varTtiDuration = GetSymbolPeriod () * dci->m_numSym;
   std::list<Ptr<NrControlMessage> > ctrlMsg;
   Ptr<PacketBurst> pktBurst = GetPacketBurst (m_currentSlot, dci->m_symStart);
   if (pktBurst && pktBurst->GetNPackets () > 0)
@@ -952,44 +952,44 @@ NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma> &dci)
                 " symbols "  << +dci->m_symStart <<
                 "-" << +(dci->m_symStart + dci->m_numSym - 1)
                      << "\t start " << Simulator::Now () <<
-                " end " << (Simulator::Now () + varTtiPeriod));
+                " end " << (Simulator::Now () + varTtiDuration));
 
   Simulator::Schedule (NanoSeconds (1.0), &NrUePhy::SendDataChannels, this,
-                       pktBurst, ctrlMsg, varTtiPeriod - NanoSeconds (2.0));
-  return varTtiPeriod;
+                       pktBurst, ctrlMsg, varTtiDuration - NanoSeconds (2.0));
+  return varTtiDuration;
 }
 
 void
 NrUePhy::StartVarTti (const std::shared_ptr<DciInfoElementTdma> &dci)
 {
   NS_LOG_FUNCTION (this);
-  Time varTtiPeriod;
+  Time varTtiDuration;
 
   m_currTbs = dci->m_tbSize;
   m_receptionEnabled = false;
 
   if (dci->m_type == DciInfoElementTdma::CTRL && dci->m_format == DciInfoElementTdma::DL)
     {
-      varTtiPeriod = DlCtrl (dci);
+      varTtiDuration = DlCtrl (dci);
     }
   else if (dci->m_type == DciInfoElementTdma::CTRL && dci->m_format == DciInfoElementTdma::UL)
     {
-      varTtiPeriod = UlCtrl (dci);
+      varTtiDuration = UlCtrl (dci);
     }
   else if (dci->m_type == DciInfoElementTdma::SRS && dci->m_format == DciInfoElementTdma::UL)
     {
-      varTtiPeriod = UlSrs (dci);
+      varTtiDuration = UlSrs (dci);
     }
   else if (dci->m_type == DciInfoElementTdma::DATA && dci->m_format == DciInfoElementTdma::DL)
     {
-      varTtiPeriod = DlData (dci);
+      varTtiDuration = DlData (dci);
     }
   else if (dci->m_type == DciInfoElementTdma::DATA && dci->m_format == DciInfoElementTdma::UL)
     {
-      varTtiPeriod = UlData (dci);
+      varTtiDuration = UlData (dci);
     }
 
-  Simulator::Schedule (varTtiPeriod, &NrUePhy::EndVarTti, this, dci);
+  Simulator::Schedule (varTtiDuration, &NrUePhy::EndVarTti, this, dci);
 }
 
 
@@ -1058,9 +1058,9 @@ NrUePhy::SendDataChannels (const Ptr<PacketBurst> &pb,
 }
 
 void
-NrUePhy::SendCtrlChannels (Time prd)
+NrUePhy::SendCtrlChannels (Time duration)
 {
-  m_spectrumPhy->StartTxUlControlFrames (m_ctrlMsgs, prd);
+  m_spectrumPhy->StartTxUlControlFrames (m_ctrlMsgs, duration);
   m_ctrlMsgs.clear ();
 }
 
@@ -1445,15 +1445,15 @@ NrUePhy::StartNrSlVarTti (const NrSlVarTtiAllocInfo &varTtiInfo)
 {
   NS_LOG_FUNCTION (this);
 
-  Time varTtiPeriod;
+  Time varTtiDuration;
 
   if (varTtiInfo.SlVarTtiType == NrSlVarTtiAllocInfo::CTRL)
     {
-      varTtiPeriod = SlCtrl (varTtiInfo);
+      varTtiDuration = SlCtrl (varTtiInfo);
     }
   else if (varTtiInfo.SlVarTtiType == NrSlVarTtiAllocInfo::DATA)
     {
-      varTtiPeriod = SlData (varTtiInfo);
+      varTtiDuration = SlData (varTtiInfo);
     }
   else
     {
@@ -1461,7 +1461,7 @@ NrUePhy::StartNrSlVarTti (const NrSlVarTtiAllocInfo &varTtiInfo)
     }
 
 
-  Simulator::Schedule (varTtiPeriod, &NrUePhy::EndNrSlVarTti, this, varTtiInfo);
+  Simulator::Schedule (varTtiDuration, &NrUePhy::EndNrSlVarTti, this, varTtiInfo);
 }
 
 void
@@ -1501,15 +1501,15 @@ NrUePhy::SlCtrl (const NrSlVarTtiAllocInfo &varTtiInfo)
     {
       NS_FATAL_ERROR ("No NR SL CTRL packet to transmit");
     }
-  Time varTtiPeriod = GetSymbolPeriod () * varTtiInfo.symLength;
+  Time varTtiDuration = GetSymbolPeriod () * varTtiInfo.symLength;
   // -1 ns ensures control ends before data period
-  SendNrSlCtrlChannels (pktBurst, varTtiPeriod - NanoSeconds (1.0), varTtiInfo);
+  SendNrSlCtrlChannels (pktBurst, varTtiDuration - NanoSeconds (1.0), varTtiInfo);
 
- return varTtiPeriod;
+ return varTtiDuration;
 }
 
 void
-NrUePhy::SendNrSlCtrlChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPeriod, const NrSlVarTtiAllocInfo &varTtiInfo)
+NrUePhy::SendNrSlCtrlChannels (const Ptr<PacketBurst> &pb, const Time &varTtiDuration, const NrSlVarTtiAllocInfo &varTtiInfo)
 {
   NS_LOG_FUNCTION (this);
 
@@ -1522,8 +1522,7 @@ NrUePhy::SendNrSlCtrlChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPer
 
   SetSubChannelsForTransmission (channelRbs, varTtiInfo.symLength);
   NS_LOG_DEBUG ("Sending PSCCH on SfnSf " << m_currentSlot);
-  m_spectrumPhy->StartTxSlCtrlFrames (pb, varTtiPeriod);
-
+  m_spectrumPhy->StartTxSlCtrlFrames (pb, varTtiDuration);
 }
 
 Time
@@ -1531,7 +1530,7 @@ NrUePhy::SlData (const NrSlVarTtiAllocInfo &varTtiInfo)
 {
   NS_LOG_FUNCTION (this);
 
-  Time varTtiPeriod = GetSymbolPeriod () * varTtiInfo.symLength;
+  Time varTtiDuration = GetSymbolPeriod () * varTtiInfo.symLength;
   Ptr<PacketBurst> pktBurst = PopPsschPacketBurst ();
 
   if (pktBurst && pktBurst->GetNPackets () > 0)
@@ -1554,15 +1553,15 @@ NrUePhy::SlData (const NrSlVarTtiAllocInfo &varTtiInfo)
                 " TXing NR SL DATA frame for symbols "  << varTtiInfo.symStart <<
                 "-" << varTtiInfo.symLength - 1
                      << "\t start " << Simulator::Now () <<
-                " end " << (Simulator::Now () + varTtiPeriod));
+                " end " << (Simulator::Now () + varTtiDuration));
 
   Simulator::Schedule (NanoSeconds (1.0), &NrUePhy::SendNrSlDataChannels, this,
-                       pktBurst, varTtiPeriod - NanoSeconds (2.0), varTtiInfo);
-  return varTtiPeriod;
+                       pktBurst, varTtiDuration - NanoSeconds (2.0), varTtiInfo);
+  return varTtiDuration;
 }
 
 void
-NrUePhy::SendNrSlDataChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPeriod, const NrSlVarTtiAllocInfo &varTtiInfo)
+NrUePhy::SendNrSlDataChannels (const Ptr<PacketBurst> &pb, const Time &varTtiDuration, const NrSlVarTtiAllocInfo &varTtiInfo)
 {
   NS_LOG_FUNCTION (this);
 
@@ -1575,11 +1574,10 @@ NrUePhy::SendNrSlDataChannels (const Ptr<PacketBurst> &pb, const Time &varTtiPer
 
   SetSubChannelsForTransmission (channelRbs, varTtiInfo.symLength);
   NS_LOG_DEBUG ("Sending PSSCH on SfnSf " << m_currentSlot);
-  m_spectrumPhy->StartTxSlDataFrames (pb, varTtiPeriod);
+  m_spectrumPhy->StartTxSlDataFrames (pb, varTtiDuration);
 
   //Notify MAC that this slot won't be monitored as we started a transmission and the SL is half-duplex
   m_nrSlUePhySapUser->NotifyUnmonitoredSlot (m_currentSlot);
-
 }
 
 void
@@ -1690,18 +1688,18 @@ NrUePhy::SendSlExpectedTbInfo (const SfnSf &s)
   NS_LOG_FUNCTION (this);
   if (m_slRxGrants.size () > 0)
     {
-      auto expextedTbInfo = m_slRxGrants.front ();
-      if (expextedTbInfo.sfn == s)
+      auto expectedTbInfo = m_slRxGrants.front ();
+      if (expectedTbInfo.sfn == s)
         {
           m_slRxGrants.pop_front ();
-          m_spectrumPhy->AddSlExpectedTb (expextedTbInfo.rnti,
-                                          expextedTbInfo.dstId,
-                                          expextedTbInfo.tbSize,
-                                          expextedTbInfo.mcs,
-                                          expextedTbInfo.rbBitmap,
-                                          expextedTbInfo.symStart,
-                                          expextedTbInfo.numSym,
-                                          expextedTbInfo.sfn);
+          m_spectrumPhy->AddSlExpectedTb (expectedTbInfo.rnti,
+                                          expectedTbInfo.dstId,
+                                          expectedTbInfo.tbSize,
+                                          expectedTbInfo.mcs,
+                                          expectedTbInfo.rbBitmap,
+                                          expectedTbInfo.symStart,
+                                          expectedTbInfo.numSym,
+                                          expectedTbInfo.sfn);
         }
     }
 }
@@ -1714,8 +1712,6 @@ NrUePhy::PhyPsschPduReceived (const Ptr<PacketBurst> &pb)
                                   GetTbDecodeLatency (),
                                   &NrSlUePhySapUser::ReceivePsschPhyPdu,
                                   m_nrSlUePhySapUser, pb);
-
-  //m_nrSlUePhySapUser->ReceivePsschPhyPdu (pb);
 }
 
 double

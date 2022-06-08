@@ -908,7 +908,7 @@ NrUeMac::SendRetxData (uint32_t usefulTbs, uint32_t activeLcsRetx)
           m_lcInfoMap.at (bsr.lcid).macSapUser->NotifyTxOpportunity (txParams);
           // After this call, m_ulDciTotalUsed has been updated with the
           // correct amount of bytes... but it is up to us in updating the BSR
-          // value, substracting the amount of bytes transmitted
+          // value, subtracting the amount of bytes transmitted
           bsr.retxQueueSize -= assignedBytes;
         }
       else
@@ -955,7 +955,7 @@ NrUeMac::SendTxData(uint32_t usefulTbs, uint32_t activeTx)
           m_lcInfoMap.at (bsr.lcid).macSapUser->NotifyTxOpportunity (txParams);
           // After this call, m_ulDciTotalUsed has been updated with the
           // correct amount of bytes... but it is up to us in updating the BSR
-          // value, substracting the amount of bytes transmitted
+          // value, subtracting the amount of bytes transmitted
           bsr.txQueueSize -= assignedBytes;
         }
       else
@@ -1086,7 +1086,7 @@ NrUeMac::SendNewStatusData()
               m_lcInfoMap.at (bsr.lcid).macSapUser->NotifyTxOpportunity (txParams);
               // After this call, m_ulDciTotalUsed has been updated with the
               // correct amount of bytes... but it is up to us in updating the BSR
-              // value, substracting the amount of bytes transmitted
+              // value, subtracting the amount of bytes transmitted
               bsr.statusPduSize = 0;
               sentOneStatusPdu = true;
             }
@@ -1393,7 +1393,7 @@ NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
       do
         {
           //following assignment is needed since we might have to perform
-          //multiple do-while over the same list by increasing the rsrpThrehold
+          //multiple do-while over the same list by increasing the rsrpThreshold
           nrCandSsResoA = nrCandSsResoTmp;
           auto itCandSsResoA = nrCandSsResoA.begin ();
           while (itCandSsResoA != nrCandSsResoA.end ())
@@ -1785,16 +1785,16 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
               m_reselCounter = GetRndmReselectionCounter ();
               m_cResel = m_reselCounter * 10;
               NS_LOG_DEBUG ("Resel Counter " << +m_reselCounter << " cResel " << m_cResel);
-              std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availbleReso = GetNrSlTxOpportunities (sfn);
+              std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = GetNrSlTxOpportunities (sfn);
               //sensing or not, due to the semi-persistent scheduling, after
               //calling the GetNrSlTxOpportunities method, and before asking the
               //scheduler for resources, we need to remove those available slots,
               //which are already part of the existing grant. When sensing is
               //activated this step corresponds to step 2 in TS 38.214 sec 8.1.4
-              //Remember, availbleReso itself can be an empty list, we do not need
+              //Remember, availableReso itself can be an empty list, we do not need
               //another if here because FilterTxOpportunities will return an empty
               //list.
-              auto filteredReso = FilterTxOpportunities (availbleReso);
+              auto filteredReso = FilterTxOpportunities (availableReso);
               if (!filteredReso.empty ())
                 {
                   //we ask the scheduler for resources only if the filtered list is not empty.
