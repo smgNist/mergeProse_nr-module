@@ -41,7 +41,7 @@
  *        configuration based on cttc-nr-v2x-demo-simple.cc example
  *
  * Channel configuration:
- * This example setup a NR sidelink out-of-coverage simulation using the 3GPP
+ * This example setups an NR sidelink out-of-coverage simulation using the 3GPP
  * channel model from TR 37.885.
  *
  * System configuration:
@@ -120,11 +120,11 @@ NS_LOG_COMPONENT_DEFINE ("NrProseUnicastSingleLink");
  */
 
 /**
- * \brief Method to listen the trace SlPscchScheduling of NrUeMac, which gets
+ * \brief Method to listen to the trace SlPscchScheduling of NrUeMac, which gets
  *        triggered upon the transmission of SCI format 1-A from UE MAC.
  *
  * \param pscchStats Pointer to the \link UeMacPscchTxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param pscchStatsParams Parameters of the trace source.
  */
 void NotifySlPscchScheduling (UeMacPscchTxOutputStats *pscchStats, const SlPscchUeMacStatParameters pscchStatsParams)
@@ -133,11 +133,11 @@ void NotifySlPscchScheduling (UeMacPscchTxOutputStats *pscchStats, const SlPscch
 }
 
 /**
- * \brief Method to listen the trace SlPsschScheduling of NrUeMac, which gets
+ * \brief Method to listen to the trace SlPsschScheduling of NrUeMac, which gets
  *        triggered upon the transmission of SCI format 2-A and data from UE MAC.
  *
  * \param psschStats Pointer to the \link UeMacPsschTxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param psschStatsParams Parameters of the trace source.
  */
 void NotifySlPsschScheduling (UeMacPsschTxOutputStats *psschStats, const SlPsschUeMacStatParameters psschStatsParams)
@@ -146,11 +146,11 @@ void NotifySlPsschScheduling (UeMacPsschTxOutputStats *psschStats, const SlPssch
 }
 
 /**
- * \brief Method to listen the trace RxPscchTraceUe of NrSpectrumPhy, which gets
+ * \brief Method to listen to the trace RxPscchTraceUe of NrSpectrumPhy, which gets
  *        triggered upon the reception of SCI format 1-A.
  *
  * \param pscchStats Pointer to the \link UePhyPscchRxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param pscchStatsParams Parameters of the trace source.
  */
 void NotifySlPscchRx (UePhyPscchRxOutputStats *pscchStats, const SlRxCtrlPacketTraceParams pscchStatsParams)
@@ -159,11 +159,11 @@ void NotifySlPscchRx (UePhyPscchRxOutputStats *pscchStats, const SlRxCtrlPacketT
 }
 
 /**
- * \brief Method to listen the trace RxPsschTraceUe of NrSpectrumPhy, which gets
+ * \brief Method to listen to the trace RxPsschTraceUe of NrSpectrumPhy, which gets
  *        triggered upon the reception of SCI format 2-A and data.
  *
  * \param psschStats Pointer to the \link UePhyPsschRxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param psschStatsParams Parameters of the trace source.
  */
 void NotifySlPsschRx (UePhyPsschRxOutputStats *psschStats, const SlRxDataPacketTraceParams psschStatsParams)
@@ -172,10 +172,10 @@ void NotifySlPsschRx (UePhyPsschRxOutputStats *psschStats, const SlRxDataPacketT
 }
 
 /**
- * \brief Method to listen the application level traces of type TxWithAddresses
+ * \brief Method to listen to the application level traces of type TxWithAddresses
  *        and RxWithAddresses.
  * \param stats Pointer to the \link UeToUePktTxRxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database. *
+ *        which is responsible for writing the trace source parameters to a database. *
  * \param nodeId The node id of the TX or RX node
  * \param localAddrs The local IPV4 address of the node
  * \param txRx The string indicating the type of node, i.e., TX or RX
@@ -207,7 +207,7 @@ uint32_t rxPktCounter = 0;
 uint32_t txPktCounter = 0;
 
 /**
- * \brief Method to listen the packet sink application trace Rx.
+ * \brief Method to listen to the packet sink application trace Rx.
  * \param packet The packet
  * \param The address of the transmitter
  */
@@ -219,7 +219,7 @@ void ReceivePacket (Ptr<const Packet> packet, const Address & from)
 }
 
 /**
- * \brief Method to listen the transmitting application trace Tx.
+ * \brief Method to listen to the transmitting application trace Tx.
  * \param packet The packet
  */
 void TransmitPacket (Ptr<const Packet> packet)
@@ -523,7 +523,7 @@ main (int argc, char *argv[])
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   slResourcePoolNr = pool;
 
-  //Configure the SlResourcePoolConfigNr IE, which hold a pool and its id
+  //Configure the SlResourcePoolConfigNr IE, which holds a pool and its id
   LteRrcSap::SlResourcePoolConfigNr slresoPoolConfigNr;
   slresoPoolConfigNr.haveSlResourcePoolConfigNr = true;
   //Pool id, ranges from 0 to 15
@@ -533,7 +533,7 @@ main (int argc, char *argv[])
   slresoPoolConfigNr.slResourcePoolId = slResourcePoolIdNr;
   slresoPoolConfigNr.slResourcePool = slResourcePoolNr;
 
-  //Configure the SlBwpPoolConfigCommonNr IE, which hold an array of pools
+  //Configure the SlBwpPoolConfigCommonNr IE, which holds an array of pools
   LteRrcSap::SlBwpPoolConfigCommonNr slBwpPoolConfigCommonNr;
   //Array for pools, we insert the pool in the array as per its poolId
   slBwpPoolConfigCommonNr.slTxPoolSelectedNormal [slResourcePoolIdNr.id] = slresoPoolConfigNr;
@@ -558,7 +558,7 @@ main (int argc, char *argv[])
   slBwpConfigCommonNr.haveSlBwpPoolConfigCommonNr = true;
   slBwpConfigCommonNr.slBwpPoolConfigCommonNr = slBwpPoolConfigCommonNr;
 
-  //Configure the SlFreqConfigCommonNr IE, which hold the array to store
+  //Configure the SlFreqConfigCommonNr IE, which holds the array to store
   //the configuration of all Sidelink BWP (s).
   LteRrcSap::SlFreqConfigCommonNr slFreConfigCommonNr;
   //Array for BWPs. Here we will iterate over the BWPs, which
@@ -638,7 +638,7 @@ main (int argc, char *argv[])
 
   //Create ProSe helper
   Ptr<NrSlProseHelper> nrSlProseHelper = CreateObject <NrSlProseHelper> ();
-  // Install ProSe layer and corresponding SAPs in the UES
+  // Install ProSe layer and corresponding SAPs in the UEs
   nrSlProseHelper->PrepareUesForProse (ueVoiceNetDev);
   //Configure ProSe Unicast parameters. At the moment it only instruct the MAC
   //layer (and PHY therefore) to monitor packets directed the UE's own Layer 2 ID

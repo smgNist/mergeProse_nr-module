@@ -41,7 +41,7 @@
  *        with UEs doing ProSe unicast direct communication over the sidelink.
  *
  * Channel configuration:
- * This example setup a simulation using the 3GPP channel model from TR 37.885
+ * This example setups a simulation using the 3GPP channel model from TR 37.885
  * and it uses the default configuration of its implementation.
  *
  * System configuration:
@@ -496,7 +496,7 @@ main (int argc, char *argv[])
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   slResourcePoolNr = pool;
 
-  //Configure the SlResourcePoolConfigNr IE, which hold a pool and its id
+  //Configure the SlResourcePoolConfigNr IE, which holds a pool and its id
   LteRrcSap::SlResourcePoolConfigNr slresoPoolConfigNr;
   slresoPoolConfigNr.haveSlResourcePoolConfigNr = true;
   //Pool id, ranges from 0 to 15
@@ -506,7 +506,7 @@ main (int argc, char *argv[])
   slresoPoolConfigNr.slResourcePoolId = slResourcePoolIdNr;
   slresoPoolConfigNr.slResourcePool = slResourcePoolNr;
 
-  //Configure the SlBwpPoolConfigCommonNr IE, which hold an array of pools
+  //Configure the SlBwpPoolConfigCommonNr IE, which holds an array of pools
   LteRrcSap::SlBwpPoolConfigCommonNr slBwpPoolConfigCommonNr;
   //Array for pools, we insert the pool in the array as per its poolId
   slBwpPoolConfigCommonNr.slTxPoolSelectedNormal [slResourcePoolIdNr.id] = slresoPoolConfigNr;
@@ -531,7 +531,7 @@ main (int argc, char *argv[])
   slBwpConfigCommonNr.haveSlBwpPoolConfigCommonNr = true;
   slBwpConfigCommonNr.slBwpPoolConfigCommonNr = slBwpPoolConfigCommonNr;
 
-  //Configure the SlFreqConfigCommonNr IE, which hold the array to store
+  //Configure the SlFreqConfigCommonNr IE, which holds the array to store
   //the configuration of all Sidelink BWP (s).
   LteRrcSap::SlFreqConfigCommonNr slFreConfigCommonNr;
   //Array for BWPs. Here we will iterate over the BWPs, which
@@ -640,7 +640,7 @@ main (int argc, char *argv[])
   /******** Configure ProSe layer in the SL UEs **********/
   //Create ProSe helper
   Ptr<NrSlProseHelper> nrSlProseHelper = CreateObject <NrSlProseHelper> ();
-  // Install ProSe layer and corresponding SAPs in the UES
+  // Install ProSe layer and corresponding SAPs in the UEs
   nrSlProseHelper->PrepareUesForProse (slUeNetDev);
   //Configure ProSe Unicast parameters. At the moment it only instruct the MAC
   //layer (and PHY therefore) to monitor packets directed the UE's own Layer 2 ID

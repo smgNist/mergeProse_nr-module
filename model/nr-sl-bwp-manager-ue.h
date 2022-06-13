@@ -180,7 +180,7 @@ protected:
   std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm> DoAddNrSlSrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &lcInfo, NrSlMacSapUser* msu);
 
   /**
-   * \brief Add a new NR Sidelink Signalling Radio Bearer Logical Channel (LC)
+   * \brief Add a new NR Sidelink Discovery Radio Bearer Logical Channel (LC)
    *
    * \param lcInfo is the Sidelink Logical Channel Information
    * \param msu is the pointer to NrSlMacSapUser, which MAC uses to call RLC methods

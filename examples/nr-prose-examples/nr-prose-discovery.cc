@@ -41,13 +41,13 @@
  *        configuration based on cttc-nr-v2x-demo-simple.cc example
  *
  * Channel configuration:
- * This example setup a NR sidelink out-of-coverage simulation using the 3GPP
+ * This example setups an NR sidelink out-of-coverage simulation using the 3GPP
  * channel model from TR 37.885.
  *
  * System configuration:
  * Sidelink will use one operational band, containing one component carrier,
  * and a single bandwidth part centered at the frequency specified by the
- * corresponding input parameter. The system bandwidth, the numerology to
+ * corresponding input parameter. The system bandwidth, and the numerology to
  * be used and the transmission power can be setup as well.
  *
  *
@@ -93,11 +93,11 @@ NS_LOG_COMPONENT_DEFINE ("NrProseDiscovery");
  */
 
 /**
- * \brief Method to listen the trace SlPscchScheduling of NrUeMac, which gets
+ * \brief Method to listen to the trace SlPscchScheduling of NrUeMac, which gets
  *        triggered upon the transmission of SCI format 1-A from UE MAC.
  *
  * \param pscchStats Pointer to the \link UeMacPscchTxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param pscchStatsParams Parameters of the trace source.
  */
 void NotifySlPscchScheduling (UeMacPscchTxOutputStats *pscchStats, const SlPscchUeMacStatParameters pscchStatsParams)
@@ -106,11 +106,11 @@ void NotifySlPscchScheduling (UeMacPscchTxOutputStats *pscchStats, const SlPscch
 }
 
 /**
- * \brief Method to listen the trace SlPsschScheduling of NrUeMac, which gets
+ * \brief Method to listen to the trace SlPsschScheduling of NrUeMac, which gets
  *        triggered upon the transmission of SCI format 2-A and data from UE MAC.
  *
  * \param psschStats Pointer to the \link UeMacPsschTxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param psschStatsParams Parameters of the trace source.
  */
 void NotifySlPsschScheduling (UeMacPsschTxOutputStats *psschStats, const SlPsschUeMacStatParameters psschStatsParams)
@@ -119,11 +119,11 @@ void NotifySlPsschScheduling (UeMacPsschTxOutputStats *psschStats, const SlPssch
 }
 
 /**
- * \brief Method to listen the trace RxPscchTraceUe of NrSpectrumPhy, which gets
+ * \brief Method to listen to the trace RxPscchTraceUe of NrSpectrumPhy, which gets
  *        triggered upon the reception of SCI format 1-A.
  *
  * \param pscchStats Pointer to the \link UePhyPscchRxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param pscchStatsParams Parameters of the trace source.
  */
 void NotifySlPscchRx (UePhyPscchRxOutputStats *pscchStats, const SlRxCtrlPacketTraceParams pscchStatsParams)
@@ -132,11 +132,11 @@ void NotifySlPscchRx (UePhyPscchRxOutputStats *pscchStats, const SlRxCtrlPacketT
 }
 
 /**
- * \brief Method to listen the trace RxPsschTraceUe of NrSpectrumPhy, which gets
+ * \brief Method to listen to the trace RxPsschTraceUe of NrSpectrumPhy, which gets
  *        triggered upon the reception of SCI format 2-A and data.
  *
  * \param psschStats Pointer to the \link UePhyPsschRxOutputStats \endlink class,
- *        which is responsible to write the trace source parameters to a database.
+ *        which is responsible for writing the trace source parameters to a database.
  * \param psschStatsParams Parameters of the trace source.
  */
 void NotifySlPsschRx (UePhyPsschRxOutputStats *psschStats, const SlRxDataPacketTraceParams psschStatsParams)
@@ -392,7 +392,7 @@ main (int argc, char *argv[])
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   slResourcePoolNr = pool;
 
-  //Configure the SlResourcePoolConfigNr IE, which hold a pool and its id
+  //Configure the SlResourcePoolConfigNr IE, which holds a pool and its id
   LteRrcSap::SlResourcePoolConfigNr slresoPoolConfigNr;
   slresoPoolConfigNr.haveSlResourcePoolConfigNr = true;
   //Pool id, ranges from 0 to 15
@@ -402,7 +402,7 @@ main (int argc, char *argv[])
   slresoPoolConfigNr.slResourcePoolId = slResourcePoolIdNr;
   slresoPoolConfigNr.slResourcePool = slResourcePoolNr;
 
-  //Configure the SlBwpPoolConfigCommonNr IE, which hold an array of pools
+  //Configure the SlBwpPoolConfigCommonNr IE, which holds an array of pools
   LteRrcSap::SlBwpPoolConfigCommonNr slBwpPoolConfigCommonNr;
   //Array for pools, we insert the pool in the array as per its poolId
   slBwpPoolConfigCommonNr.slTxPoolSelectedNormal [slResourcePoolIdNr.id] = slresoPoolConfigNr;
@@ -427,7 +427,7 @@ main (int argc, char *argv[])
   slBwpConfigCommonNr.haveSlBwpPoolConfigCommonNr = true;
   slBwpConfigCommonNr.slBwpPoolConfigCommonNr = slBwpPoolConfigCommonNr;
 
-  //Configure the SlFreqConfigCommonNr IE, which hold the array to store
+  //Configure the SlFreqConfigCommonNr IE, which holds the array to store
   //the configuration of all Sidelink BWP (s).
   LteRrcSap::SlFreqConfigCommonNr slFreConfigCommonNr;
   //Array for BWPs. Here we will iterate over the BWPs, which
@@ -502,7 +502,7 @@ main (int argc, char *argv[])
 
   //Create ProSe helper
   Ptr<NrSlProseHelper> nrSlProseHelper = CreateObject <NrSlProseHelper> ();
-  // Install ProSe layer and corresponding SAPs in the UES
+  // Install ProSe layer and corresponding SAPs in the UEs
   nrSlProseHelper->PrepareUesForProse (ueVoiceNetDev);
 
   /*

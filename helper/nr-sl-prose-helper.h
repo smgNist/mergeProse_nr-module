@@ -108,7 +108,7 @@ public:
    * participating in the direct link. Then, the ProSe layer configures the direct
    * link instances and starts the establishment procedure in the initiating UE.
    * A real protocol means that PC5-S messages used for establishing and
-   * maintaining the direct link connection goes through the protocol stack,
+   * maintaining the direct link connection go through the protocol stack, and
    * are transmitted in SL-SRBs and sent over the SL
    *
    * \param time The time at which the direct link instances should be created
@@ -228,13 +228,13 @@ private:
   *
   *  Install ProSe layer in the device and connect corresponding SAPs
   *
-  * \param NrUeDev The Ptr to NR UE NetDevice
+  * \param nrUeDev The Ptr to NR UE NetDevice
   */
   void PrepareSingleUeForProse (Ptr<NrUeNetDevice> nrUeDev);
   /**
   * \brief  Prepare UE for Unicast ProSe Direct Communication
   *
-  * \param NrUeDev The Ptr to NR UE NetDevice
+  * \param nrUeDev The Ptr to NR UE NetDevice
   */
   void PrepareSingleUeForUnicast (Ptr<NrUeNetDevice> nrUeDev);
 

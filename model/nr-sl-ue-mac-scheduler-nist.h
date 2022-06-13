@@ -66,7 +66,7 @@ public:
   /**
    * \brief Do the NR Sidelink allocation
    *
-   * This method performs the allocation of resources.  This scheduler serve
+   * This method performs the allocation of resources.  This scheduler serves
    * the LCs by priority, and then by creation time (insertion order) among
    * the LCs with the same priority
    *
@@ -130,12 +130,12 @@ private:
    * index by taking into account the number of available contiguous subchannels
    * and the number of subchannels that needs to be assigned.
    *
-   * \param A struct object of type SbChInfo
+   * \param sbChInfo a struct object of type SbChInfo
    * \param assignedSbCh The number of assigned subchannels
    * \return A vector containing the randomly chosen starting subchannel index
    *         for each slot.
    */
-  std::vector <uint8_t> RandSelSbChStart (SbChInfo, uint8_t assignedSbCh);
+  std::vector <uint8_t> RandSelSbChStart (SbChInfo sbChInfo, uint8_t assignedSbCh);
 };
 
 } //namespace ns3
