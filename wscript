@@ -120,7 +120,6 @@ def build(bld):
         'model/nr-sl-phy-mac-common.cc',
         'model/nr-sl-interference.cc',
         'model/nr-sl-chunk-processor.cc',
-        'model/nr-sl-ue-mac-scheduler-nist.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('nr')
@@ -273,7 +272,6 @@ def build(bld):
         'model/nr-sl-phy-mac-common.h',
         'model/nr-sl-interference.h',
         'model/nr-sl-chunk-processor.h',
-        'model/nr-sl-ue-mac-scheduler-nist.h',
         ]
 
     if bld.env.ENABLE_EXAMPLES:
