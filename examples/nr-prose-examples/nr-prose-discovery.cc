@@ -353,11 +353,11 @@ main (int argc, char *argv[])
 
   /*
    * Set the SL scheduler attributes
-   * In this example we use NrSlUeMacSchedulerNist scheduler, which uses
-   * fix MCS value (as NrSlUeMacSchedulerSimple) and schedules logical channels
-   * by priority order first and then by creation order
+   * In this example we use NrSlUeMacSchedulerSimple scheduler, which uses
+   * fix MCS value and schedules logical channels by priority order first and
+   * then by creation order
    */
-  nrSlHelper->SetNrSlSchedulerTypeId (NrSlUeMacSchedulerNist::GetTypeId ());
+  nrSlHelper->SetNrSlSchedulerTypeId (NrSlUeMacSchedulerSimple::GetTypeId ());
   nrSlHelper->SetUeSlSchedulerAttribute ("FixNrSlMcs", BooleanValue (true));
   nrSlHelper->SetUeSlSchedulerAttribute ("InitialNrSlMcs", UintegerValue (14));
 

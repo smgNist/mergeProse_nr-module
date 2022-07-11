@@ -48,10 +48,9 @@ public:
   /**
    * \brief Do the NR Sidelink allocation
    *
-   * The SCI 1-A is Txed with every new transmission and after the transmission
-   * for, which \c txNumTb mod MaxNumPerReserved == 0 \c , where the txNumTb
-   * is the transmission index of the TB, e.g., 0 for initial tx, 1 for a first
-   * retransmission, and so on.
+   * This method performs the allocation of resources.  This scheduler serves
+   * the LCs by priority, and then by creation time (insertion order) among
+   * the LCs with the same priority
    *
    * \param txOpps The list of the txOpps from the UE MAC
    * \param dstInfo The pointer to the NrSlUeMacSchedulerDstInfo of the destination

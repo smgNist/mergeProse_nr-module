@@ -915,7 +915,7 @@ main (int argc, char *argv[])
   nrSlHelper->SetUeSlAmcAttribute ("AmcModel", EnumValue (NrAmc::ErrorModel));
 
   //Set the SL scheduler attributes
-  nrSlHelper->SetNrSlSchedulerTypeId (NrSlUeMacSchedulerNist::GetTypeId ());
+  nrSlHelper->SetNrSlSchedulerTypeId (NrSlUeMacSchedulerSimple::GetTypeId ());
   nrSlHelper->SetUeSlSchedulerAttribute ("FixNrSlMcs", BooleanValue (true));
   nrSlHelper->SetUeSlSchedulerAttribute ("InitialNrSlMcs", UintegerValue (14));
 
