@@ -1549,6 +1549,10 @@ NR V2X extension
 
 .. include:: nr-v2x-design.inc
 
+NR ProSe extension
+******************
+
+.. include:: nr-prose-design.inc
 
 Scope and Limitations
 *********************
@@ -1953,6 +1957,12 @@ NR V2X Examples
 ***************
 
 .. include:: nr-v2x-usage.inc
+
+
+NR ProSe Examples
+*****************
+
+.. include:: nr-prose-usage.inc
 
 .. _Validation:
 
