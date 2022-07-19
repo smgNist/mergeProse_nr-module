@@ -125,6 +125,7 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
   //Now, before allocating bytes to LCs we subtract 5 bytes for SCI format 2A
   //since we already took it into account while computing the TB size.
   tbs = tbs - 5 /*(5 bytes overhead of SCI stage 2)*/;
+  NS_LOG_DEBUG ("TBS = " << tbs);
 
   //3. Obtain the LCs that are going to be served with this allocation. The
   //   logic below serve the LCs by priority, and by creation time among the
@@ -149,12 +150,12 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
                     }
                   else
                     {
-                      toServe = tbs - itLcg.second->GetTotalSizeOfLC (itLcId);
+                      toServe = tbs - servedBuffer;
                       full = true;
                     }
                   if (toServe > 0)
                     {
-                      servedBuffer = +toServe;
+                      servedBuffer += toServe;
                       SlRlcPduInfo slRlcPduInfo (itLcId, toServe);
                       tmpLcsToServe.push_back (slRlcPduInfo);
                       NS_LOG_DEBUG ("LCG " << (uint16_t) itLcg.second->m_id <<
@@ -177,6 +178,12 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
         }
     }
   NS_LOG_DEBUG ("Served Buffer (bytes) = " << servedBuffer << " Number of served LCs = " << tmpLcsToServe.size ());
+
+  //Add padding to last LC allocation to fill TBS
+  if (tmpLcsToServe.size () > 0 && servedBuffer < tbs )
+  {
+    tmpLcsToServe.back().size = tmpLcsToServe.back().size + tbs - servedBuffer;
+  }
 
   std::vector <uint8_t> startSubChIndexPerSlot = RandSelSbChStart (sbChInfo, assignedSbCh);
 
