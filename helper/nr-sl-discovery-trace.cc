@@ -108,7 +108,7 @@ NrSlDiscoveryTrace::DiscoveryTrace (uint32_t senderL2Id, uint32_t receiverL2Id, 
           return;
         }
       m_discoveryFirstWrite = false;
-      outFile << "Time\tTX/RX\tsenderL2Id\treceiverL2Id\tDiscType\tDiscModel\tContentType\tContent" << std::endl;
+      outFile << "Time (ns)\tTX/RX\tsenderL2Id\treceiverL2Id\tDiscType\tDiscModel\tContentType\tContent" << std::endl;
     }
   else
     {
@@ -121,7 +121,7 @@ NrSlDiscoveryTrace::DiscoveryTrace (uint32_t senderL2Id, uint32_t receiverL2Id, 
     }
 
 
-  outFile << Simulator::Now ().GetMilliSeconds () << "\t";
+  outFile << Simulator::Now ().GetNanoSeconds () << "\t";
   if (isTx)
   {
     outFile << "TX" << "\t";
