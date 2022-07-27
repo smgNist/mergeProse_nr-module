@@ -60,12 +60,12 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
   NS_LOG_DEBUG ("dstL2Id " << dstInfo->GetDstL2Id () << " has " << lcgMap.size () << " LCGs:");
   for (const auto &itLcg:lcgMap)
     {
-      NS_LOG_DEBUG ( "-LCG " << (uint16_t) itLcg.second->m_id << " has " << itLcg.second->GetNumOfLC () << " LCs:");
+      NS_LOG_DEBUG ( " LCG " << (uint16_t) itLcg.second->m_id << " has " << itLcg.second->GetNumOfLC () << " LCs:");
       std::vector<uint8_t> lcIdsVector = itLcg.second->GetLCId (); //Vector with LC Ids of this LCG
 
       for (const auto &itLcId:lcIdsVector)
         {
-          NS_LOG_DEBUG ( " -LC " << (uint16_t) itLcId  << " has " << itLcg.second->GetTotalSizeOfLC (itLcId)
+          NS_LOG_DEBUG ( "  LC " << (uint16_t) itLcId  << " has " << itLcg.second->GetTotalSizeOfLC (itLcId)
                                  << " bytes to transmit and priority value = " << (uint16_t) itLcg.second->GetLcPriority (itLcId));
           if (itLcg.second->GetTotalSizeOfLC (itLcId) > 0)
             {
@@ -107,7 +107,7 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
     }
   NS_LOG_DEBUG ("Minimum available symbols for PSSCH = " << minAvailableSymbols);
 
-  //2. Calculate the smallest TB in which the total buffer can fit, if possible
+  //2. Assign enough subchannels to accommodate the total buffer as much as possible
   uint16_t sbChSize = selectedTxOpps.begin ()->slSubchannelSize;
   //find the minimum available number of contiguous sub-channels in the
   //selected TxOpps
