@@ -82,7 +82,7 @@ NrSlBwpManagerUe::SetNrSlUeBwpmRrcSapUser (NrSlUeBwpmRrcSapUser* nrSlUeBwpmRrcSa
 void
 NrSlBwpManagerUe::DoTransmitNrSlRlcPdu (const NrSlMacSapProvider::NrSlRlcPduParameters &params)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) params.lcid << params.srcL2Id << params.dstL2Id);
 
   NS_LOG_INFO ("NR SL BWP manager forwarding SL RLC PDU to MAC");
   std::map<uint8_t, std::map<NrSlUeBwpLcIdentifier, NrSlMacSapProvider*> >::iterator it;
@@ -103,7 +103,7 @@ NrSlBwpManagerUe::DoTransmitNrSlRlcPdu (const NrSlMacSapProvider::NrSlRlcPduPara
 void
 NrSlBwpManagerUe::DoReportNrSlBufferStatus (const NrSlMacSapProvider::NrSlReportBufferStatusParameters &params)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) params.lcid << params.srcL2Id << params.dstL2Id);
 
   NS_ASSERT (m_algorithm != nullptr);
   NrSlUeBwpLcIdentifier slLcIdentifier;
@@ -135,7 +135,7 @@ NrSlBwpManagerUe::DoReportNrSlBufferStatus (const NrSlMacSapProvider::NrSlReport
 void
 NrSlBwpManagerUe::DoNotifyNrSlTxOpportunity (const NrSlMacSapUser::NrSlTxOpportunityParameters &txOpParams)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) txOpParams.lcid << txOpParams.srcL2Id << txOpParams.dstL2Id);
 
   NrSlUeBwpLcIdentifier slLcIdentifier;
   slLcIdentifier.lcId = txOpParams.lcid;
@@ -159,7 +159,7 @@ NrSlBwpManagerUe::DoNotifyNrSlTxOpportunity (const NrSlMacSapUser::NrSlTxOpportu
 void
 NrSlBwpManagerUe::DoReceiveNrSlRlcPdu (NrSlMacSapUser::NrSlReceiveRlcPduParameters rxPduParams)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) rxPduParams.lcid << rxPduParams.srcL2Id << rxPduParams.dstL2Id);
 
   NrSlUeBwpLcIdentifier slLcIdentifier;
   slLcIdentifier.lcId = rxPduParams.lcid;
@@ -182,7 +182,7 @@ NrSlBwpManagerUe::DoReceiveNrSlRlcPdu (NrSlMacSapUser::NrSlReceiveRlcPduParamete
 std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm>
 NrSlBwpManagerUe::DoAddNrSlDrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &lcInfo, NrSlMacSapUser* msu)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) lcInfo.lcId << lcInfo.srcL2Id << lcInfo.dstL2Id << msu);
 
   //SL DRB LC starts from 4
   NS_ASSERT_MSG (lcInfo.lcId > 3, "Hey! I can only add the LC for data radio bearers.");
@@ -231,7 +231,7 @@ NrSlBwpManagerUe::DoAddNrSlDrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalCh
 std::vector<uint8_t>
 NrSlBwpManagerUe::DoRemoveNrSlDrbLc (uint8_t slLcId, uint32_t srcL2Id, uint32_t dstL2Id)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) slLcId << srcL2Id << dstL2Id);
 
   NS_ASSERT_MSG (slLcId > 3, "Hey! I can delete only the LC for data radio bearers.");
   std::vector<uint8_t> res;
@@ -289,7 +289,7 @@ NrSlBwpManagerUe::DoSetBwpIdContainer (const std::set<uint8_t> &bwpIdVec)
 bool
 NrSlBwpManagerUe::SetNrSlMacSapProviders (uint8_t bwpId, NrSlMacSapProvider* sap)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) bwpId << sap);
   bool result = false;
   std::map <uint8_t, NrSlMacSapProvider*>::iterator it;
   it = m_nrSlMacSapProvidersMap.find (bwpId);
@@ -316,7 +316,7 @@ NrSlBwpManagerUe::GetNrSlMacSapProviderFromBwpm ()
 std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm>
 NrSlBwpManagerUe::DoAddNrSlSrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &lcInfo, NrSlMacSapUser* msu)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) lcInfo.lcId << lcInfo.srcL2Id << lcInfo.dstL2Id << msu);
 
   //SL SRB LC form 0 to 3
   NS_ASSERT_MSG (lcInfo.lcId < 4, "Hey! This method can only add the LC for signalling radio bearers.");
@@ -365,7 +365,7 @@ NrSlBwpManagerUe::DoAddNrSlSrbLc (const NrSlUeCmacSapProvider::SidelinkLogicalCh
 std::vector<NrSlUeBwpmRrcSapProvider::SlLcInfoBwpm>
 NrSlBwpManagerUe::DoAddNrSlDiscoveryRbLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &lcInfo, NrSlMacSapUser* msu)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << (uint16_t) lcInfo.lcId << lcInfo.srcL2Id << lcInfo.dstL2Id << msu);
 
   //\todo At the moment this is just a C&P of DoAddNrSlDrbLc. TBD if having only one
   //function and differentiate the behavior inside worth the implementation hassle
