@@ -51,6 +51,13 @@ cpp_examples = [
     ("nr-v2x-west-to-east-highway --enableSensing=1 --simTag=testpy-sensing", "True", "True"),
     ("nr-v2x-west-to-east-highway --enableSensing=0 --simTag=testpy-nosensing", "True", "True"),
     ("cttc-nr-v2x-demo-simple --simTag=testpy", "True", "True"),
+    ("nr-prose-discovery", "True", "True"),
+    ("nr-prose-discovery-relay", "True", "True"),
+    ("nr-prose-unicast-single-link", "True", "True"),
+    ("nr-prose-unicast-multi-link", "True", "True"),
+    ("nr-prose-network-coex", "True", "True"),
+    ("nr-prose-network-l3-relay", "True", "True"),
+    ("nr-prose-l3-relay-on-off", "True", "True"),
     ]
 
 # A list of Python examples to run in order to ensure that they remain

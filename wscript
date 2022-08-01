@@ -14,6 +14,7 @@ def build(bld):
         'helper/nr-helper.cc',
         'helper/nr-phy-rx-trace.cc',
         'helper/nr-mac-rx-trace.cc',
+        'helper/nr-sl-discovery-trace.cc',
         'helper/nr-point-to-point-epc-helper.cc',
         'helper/nr-bearer-stats-calculator.cc',
         'helper/nr-bearer-stats-connector.cc',
@@ -30,6 +31,7 @@ def build(bld):
         'helper/scenario-parameters.cc',
         'helper/three-gpp-ftp-m1-helper.cc',
         'helper/nr-sl-helper.cc',
+        'helper/nr-sl-prose-helper.cc',      
         'model/nr-net-device.cc',
         'model/nr-gnb-net-device.cc',
         'model/nr-ue-net-device.cc',
@@ -154,6 +156,7 @@ def build(bld):
     headers.module = 'nr'
     headers.source = [
         'helper/nr-helper.h',
+        'helper/nr-sl-discovery-trace.h',
         'helper/nr-phy-rx-trace.h',
         'helper/nr-mac-rx-trace.h',
         'helper/nr-point-to-point-epc-helper.h',
@@ -172,6 +175,7 @@ def build(bld):
         'helper/scenario-parameters.h',
         'helper/three-gpp-ftp-m1-helper.h',
         'helper/nr-sl-helper.h',
+        'helper/nr-sl-prose-helper.h',
         'model/nr-net-device.h',
         'model/nr-gnb-net-device.h',
         'model/nr-ue-net-device.h',

@@ -15,6 +15,9 @@ IMAGES_DIA = \
 	$(FIGURES)/rbf-impl.dia \
 	$(FIGURES)/nr-sl-arch-ue-data-plane.dia \
 	$(FIGURES)/nr-sl-arch-ue-ctrl-plane.dia \
+	$(FIGURES)/prose-arch-ue-ctrl-plane.dia \
+	$(FIGURES)/prose-arch-ue-data-plane.dia \
+	$(FIGURES)/prose-arch-dir-link.dia \
 #	$(FIGURES)/*.dia
 
 
@@ -60,6 +63,10 @@ IMAGES_NOBUILD = \
 	$(FIGURES)/protocol-stack.png \
 	$(FIGURES)/scenario-simple.png \
 	$(FIGURES)/end-to-end.png \
+	$(FIGURES)/prose-disc-modelA.png \
+	$(FIGURES)/prose-disc-modelB.png \
+	$(FIGURES)/prose-disc-traces-direct-modelA.png \
+	$(FIGURES)/prose-disc-traces-relay-modelB.png \
 
 
 IMAGES_BUILD = \
