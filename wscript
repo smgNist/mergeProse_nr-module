@@ -120,6 +120,11 @@ def build(bld):
         'model/nr-sl-phy-mac-common.cc',
         'model/nr-sl-interference.cc',
         'model/nr-sl-chunk-processor.cc',
+        'model/nr-sl-discovery-header.cc',
+        'model/nr-sl-pc5-signalling-header.cc',
+        'model/nr-sl-ue-prose-direct-link.cc',
+        'model/nr-sl-ue-prose.cc',
+        'model/nr-sl-ue-service.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('nr')
@@ -272,6 +277,11 @@ def build(bld):
         'model/nr-sl-phy-mac-common.h',
         'model/nr-sl-interference.h',
         'model/nr-sl-chunk-processor.h',
+        'model/nr-sl-discovery-header.h',
+        'model/nr-sl-pc5-signalling-header.h',
+        'model/nr-sl-ue-prose-direct-link.h',
+        'model/nr-sl-ue-prose.h',
+        'model/nr-sl-ue-service.h',
         ]
 
     if bld.env.ENABLE_EXAMPLES:
