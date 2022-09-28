@@ -58,6 +58,33 @@ foreach(
   )
 endforeach()
 
+set(nr-prose-examples_examples
+    nr-prose-unicast-single-link
+    nr-prose-unicast-multi-link
+    nr-prose-discovery
+    nr-prose-discovery-relay
+)
+set(nr-v2x-examples_source_files
+    nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc
+    nr-v2x-examples/ue-mac-pssch-tx-output-stats.cc
+    nr-v2x-examples/ue-phy-pscch-rx-output-stats.cc
+    nr-v2x-examples/ue-phy-pssch-rx-output-stats.cc
+    nr-v2x-examples/ue-rlc-rx-output-stats.cc
+    nr-v2x-examples/ue-to-ue-pkt-txrx-output-stats.cc
+    nr-v2x-examples/v2x-kpi.cc
+)
+foreach(
+  example
+  ${nr-prose-examples_examples}
+)
+  build_lib_example(
+    NAME ${example}
+    SOURCE_FILES nr-v2x-examples/${example}.cc
+                 ${nr-prose-examples_source_files}
+    LIBRARIES_TO_LINK ${libnr}
+  )
+endforeach()
+
 set(lena-lte-comparison_examples
     lena-lte-comparison-user
     lena-lte-comparison-campaign

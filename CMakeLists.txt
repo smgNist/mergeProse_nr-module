@@ -2,6 +2,7 @@ set(source_files
     helper/nr-helper.cc
     helper/nr-phy-rx-trace.cc
     helper/nr-mac-rx-trace.cc
+    helper/nr-sl-discovery-trace.cc
     helper/nr-point-to-point-epc-helper.cc
     helper/nr-bearer-stats-calculator.cc
     helper/nr-bearer-stats-simple.cc
@@ -21,6 +22,7 @@ set(source_files
     helper/nr-stats-calculator.cc
     helper/nr-mac-scheduling-stats.cc
     helper/nr-sl-helper.cc
+    helper/nr-sl-prose-helper.cc
     model/nr-net-device.cc
     model/nr-gnb-net-device.cc
     model/nr-ue-net-device.cc
@@ -109,6 +111,11 @@ set(source_files
     model/nr-sl-ue-mac-scheduler-ns3.cc
     model/nr-sl-ue-mac-scheduler-simple.cc
     model/nr-sl-ue-phy-sap.cc
+    model/nr-sl-discovery-header.cc
+    model/nr-sl-pc5-signalling-header.cc
+    model/nr-sl-ue-prose-direct-link.cc
+    model/nr-sl-ue-prose.cc
+    model/nr-sl-ue-service.cc
     utils/file-transfer-helper.cc
     utils/file-transfer-application.cc
     utils/three-gpp-channel-model-param.cc
@@ -117,6 +124,7 @@ set(source_files
 
 set(header_files
     helper/nr-helper.h
+    helper/nr-sl-discovery-trace.h
     helper/nr-phy-rx-trace.h
     helper/nr-mac-rx-trace.h
     helper/nr-point-to-point-epc-helper.h
@@ -138,6 +146,7 @@ set(header_files
     helper/nr-stats-calculator.h
     helper/nr-mac-scheduling-stats.h
     helper/nr-sl-helper.h
+    helper/nr-sl-prose-helper.h
     model/nr-net-device.h
     model/nr-gnb-net-device.h
     model/nr-ue-net-device.h
@@ -233,6 +242,11 @@ set(header_files
     model/nr-sl-ue-mac-scheduler-ns3.h
     model/nr-sl-ue-mac-scheduler-simple.h
     model/nr-sl-ue-phy-sap.h
+    model/nr-sl-discovery-header.h
+    model/nr-sl-pc5-signalling-header.h
+    model/nr-sl-ue-prose-direct-link.h
+    model/nr-sl-ue-prose.h
+    model/nr-sl-ue-service.h
     utils/file-transfer-helper.h
     utils/file-transfer-application.h
     utils/three-gpp-channel-model-param.h
