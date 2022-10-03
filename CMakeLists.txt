@@ -95,7 +95,6 @@ set(source_files
     model/beam-conf-id.cc
     model/nr-sl-bwp-manager-ue.cc
     model/nr-sl-chunk-processor.cc
-    model/nr-sl-comm-preconfig-resource-pool-factory.cc
     model/nr-sl-comm-resource-pool-factory.cc
     model/nr-sl-interference.cc
     model/nr-sl-mac-pdu-tag.cc
@@ -225,7 +224,6 @@ set(header_files
     model/beam-conf-id.h
     model/nr-sl-bwp-manager-ue.h
     model/nr-sl-chunk-processor.h
-    model/nr-sl-comm-preconfig-resource-pool-factory.h
     model/nr-sl-comm-resource-pool-factory.h
     model/nr-sl-interference.h
     model/nr-sl-mac-pdu-tag.h
