@@ -870,7 +870,7 @@ NrUePhy::UlSrs (const std::shared_ptr<DciInfoElementTdma> &dci)
   for (uint8_t streamIndex = 0; streamIndex < m_spectrumPhys.size(); streamIndex++)
     {
       m_phyTxedCtrlMsgsTrace (m_currentSlot,  GetCellId (), dci->m_rnti, GetBwpId (), *srsMsg.begin ());
-      m_spectrumPhys.at (streamIndex)->StartTxUlControlFrames (srsMsg, varTtiPeriod - NanoSeconds (1.0));
+      m_spectrumPhys.at (streamIndex)->StartTxUlControlFrames (srsMsg, varTtiDuration - NanoSeconds (1.0));
     }
 
   NS_LOG_DEBUG ("UE" << m_rnti << " TXing UL SRS frame for symbols " <<
@@ -983,7 +983,7 @@ NrUePhy::DlData (const std::shared_ptr<DciInfoElementTdma> &dci)
                         "-" << +(dci->m_symStart + dci->m_numSym - 1) <<
                         " num of rbg assigned: " << FromRBGBitmaskToRBAssignment (dci->m_rbgBitmask).size () <<
                         "\t start " << Simulator::Now () <<
-                        " end " << (Simulator::Now () + varTtiPeriod));
+                        " end " << (Simulator::Now () + varTtiDuration));
         }
     }
 
@@ -1000,7 +1000,7 @@ NrUePhy::UlData(const std::shared_ptr<DciInfoElementTdma> &dci)
     }
   // Currently uplink DATA is transmitted over only 1 stream
   SetSubChannelsForTransmission (FromRBGBitmaskToRBAssignment (dci->m_rbgBitmask), dci->m_numSym, 1);
-  Time varTtiPeriod = GetSymbolPeriod () * dci->m_numSym;
+  Time varTtiDuration = GetSymbolPeriod () * dci->m_numSym;
   std::list<Ptr<NrControlMessage> > ctrlMsg;
   //MIMO is not supported for UL yet.
   //Therefore, there will be only
@@ -1143,7 +1143,7 @@ void
 NrUePhy::SendCtrlChannels (Time duration)
 {
   // Uplink CTRL is sent only through a single stream, the first is assumed
-  m_spectrumPhys.at (0)->StartTxUlControlFrames (m_ctrlMsgs, prd);
+  m_spectrumPhys.at (0)->StartTxUlControlFrames (m_ctrlMsgs, duration);
   m_ctrlMsgs.clear ();
 }
 
@@ -1873,7 +1873,7 @@ NrUePhy::SendNrSlCtrlChannels (const Ptr<PacketBurst> &pb, const Time &varTtiDur
   SetSubChannelsForTransmission (channelRbs, varTtiInfo.symLength, 1);
   NS_LOG_DEBUG ("Sending PSCCH on SfnSf " << m_currentSlot);
   // Assume Sl Ctrl channel is sent through the first stream
-  m_spectrumPhys.at (0)->StartTxSlCtrlFrames (pb, varTtiPeriod);
+  m_spectrumPhys.at (0)->StartTxSlCtrlFrames (pb, varTtiDuration);
 }
 
 Time
@@ -1926,7 +1926,7 @@ NrUePhy::SendNrSlDataChannels (const Ptr<PacketBurst> &pb, const Time &varTtiDur
   SetSubChannelsForTransmission (channelRbs, varTtiInfo.symLength, 1);
   NS_LOG_DEBUG ("Sending PSSCH on SfnSf " << m_currentSlot);
   // Assume Sl Data channel is sent through the first stream
-  m_spectrumPhys.at (0)->StartTxSlDataFrames (pb, varTtiPeriod);
+  m_spectrumPhys.at (0)->StartTxSlDataFrames (pb, varTtiDuration);
 }
 
 void
