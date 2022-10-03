@@ -126,7 +126,7 @@ $ gnuplot nr-prose-l3-relay-mcptt-topology.plt
  * 10. mcptt-state-machine-stats.txt: MCPTT state machine trace
  *
  * \code{.unparsed}
-$ ./waf --run "nr-prose-l3-relay-mcptt --Help"
+$ ./ns3 --run "nr-prose-l3-relay-mcptt --Help"
     \endcode
  */
 
@@ -1782,7 +1782,7 @@ main (int argc, char *argv[])
 
 
   /************ SL traces database setup *************************************/
-  SQLiteOutput db (outputDir + exampleName + "-traces.db", exampleName);
+  SQLiteOutput db (outputDir + exampleName + "-traces.db");
 
   UeMacPscchTxOutputStats pscchStats;
   pscchStats.SetDb (&db, "pscchTxUeMac");

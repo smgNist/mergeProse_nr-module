@@ -116,7 +116,7 @@ $ gnuplot nr-prose-l3-relay-on-off-topology.plt
  * relay UEs.
  *
  * \code{.unparsed}
-$ ./waf --run "nr-prose-l3-relay-on-off --Help"
+$ ./ns3 run "nr-prose-l3-relay-on-off --Help"
     \endcode
  */
 
@@ -1765,7 +1765,7 @@ main (int argc, char *argv[])
   /******************** End Application configuration ************************/
 
   /************ SL traces database setup *************************************/
-  SQLiteOutput db (outputDir + exampleName + "-SlTraces.db", exampleName);
+  SQLiteOutput db (outputDir + exampleName + "-SlTraces.db");
 
   UeMacPscchTxOutputStats pscchStats;
   pscchStats.SetDb (&db, "pscchTxUeMac");
@@ -1779,12 +1779,12 @@ main (int argc, char *argv[])
 
   UePhyPscchRxOutputStats pscchPhyStats;
   pscchPhyStats.SetDb (&db, "pscchRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPscchTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPscchTraceUe",
                                  MakeBoundCallback (&NotifySlPscchRx, &pscchPhyStats));
 
   UePhyPsschRxOutputStats psschPhyStats;
   psschPhyStats.SetDb (&db, "psschRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPsschTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPsschTraceUe",
                                  MakeBoundCallback (&NotifySlPsschRx, &psschPhyStats));
   UeRlcRxOutputStats ueRlcRxStats;
   ueRlcRxStats.SetDb (&db, "rlcRx");

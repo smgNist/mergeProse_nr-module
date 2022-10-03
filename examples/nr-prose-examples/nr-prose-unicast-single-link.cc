@@ -81,7 +81,7 @@
  * of scenario setup and NR sidelink configuration
  *
  * \code{.unparsed}
-$ ./waf --run "nr-prose-unicast-single-link --help"
+$ ./ns3 run "nr-prose-unicast-single-link --help"
     \endcode
  *
  */
@@ -211,9 +211,8 @@ uint32_t txPktCounter = 0;
  * \param packet The packet
  * \param The address of the transmitter
  */
-void ReceivePacket (Ptr<const Packet> packet, const Address & from)
+void ReceivePacket (Ptr<const Packet> packet, const Address & from [[maybe_unused]])
 {
-  NS_UNUSED (from);
   rxByteCounter += packet->GetSize ();
   rxPktCounter++;
 }
@@ -240,9 +239,8 @@ Time pir;
  * \param packet The packet
  * \param from The address of the transmitter
  */
-void ComputePir (Ptr<const Packet> packet, const Address &from)
+void ComputePir (Ptr<const Packet> packet, const Address &from [[maybe_unused]])
 {
-  NS_UNUSED (from);
   if (pirCounter == 0 && lastPktRxTime.GetSeconds () == 0.0)
     {
       //this the first packet, just store the time and get out
@@ -707,7 +705,7 @@ main (int argc, char *argv[])
 
   //Database setup
   std::string exampleName = simTag + "-" + "nr-prose-unicast-single-link";
-  SQLiteOutput db (outputDir + exampleName + ".db", exampleName);
+  SQLiteOutput db (outputDir + exampleName + ".db");
 
   UeMacPscchTxOutputStats pscchStats;
   pscchStats.SetDb (&db, "pscchTxUeMac");
@@ -722,12 +720,12 @@ main (int argc, char *argv[])
 
   UePhyPscchRxOutputStats pscchPhyStats;
   pscchPhyStats.SetDb (&db, "pscchRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPscchTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPscchTraceUe",
                                  MakeBoundCallback (&NotifySlPscchRx, &pscchPhyStats));
 
   UePhyPsschRxOutputStats psschPhyStats;
   psschPhyStats.SetDb (&db, "psschRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPsschTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPsschTraceUe",
                                  MakeBoundCallback (&NotifySlPsschRx, &psschPhyStats));
 
   UeToUePktTxRxOutputStats pktStats;

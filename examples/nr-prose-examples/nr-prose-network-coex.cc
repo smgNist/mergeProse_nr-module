@@ -88,7 +88,7 @@
  * link. 
  * 
  * \code{.unparsed}
-$ ./waf --run "nr-prose-network-coex --Help"
+$ ./ns3 run "nr-prose-network-coex --Help"
     \endcode
  */
 
@@ -802,7 +802,7 @@ main (int argc, char *argv[])
 
   /************ SL traces database setup *************************************/
   std::string exampleName = simTag + "-" + "nr-prose-network-coex";
-  SQLiteOutput db (outputDir + exampleName + "-SlTraces.db", exampleName);
+  SQLiteOutput db (outputDir + exampleName + "-SlTraces.db");
 
   UeMacPscchTxOutputStats pscchStats;
   pscchStats.SetDb (&db, "pscchTxUeMac");
@@ -816,12 +816,12 @@ main (int argc, char *argv[])
 
   UePhyPscchRxOutputStats pscchPhyStats;
   pscchPhyStats.SetDb (&db, "pscchRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPscchTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPscchTraceUe",
                                  MakeBoundCallback (&NotifySlPscchRx, &pscchPhyStats));
 
   UePhyPsschRxOutputStats psschPhyStats;
   psschPhyStats.SetDb (&db, "psschRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPsschTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPsschTraceUe",
                                  MakeBoundCallback (&NotifySlPsschRx, &psschPhyStats));
 
   UeToUePktTxRxOutputStats pktStats;
