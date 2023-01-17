@@ -1450,15 +1450,20 @@ NrUeMac::GetFutSlotsBasedOnSens (SensingData sensedData)
   double tScalMilSec = selecWindLen * slotLenMiSec;
   double pRsvpRxMilSec = static_cast<double> (sensedData.rsvp);
   uint16_t q = 0;
-  //I am aware that two double variable are compared. I don't expect these two
-  //numbers to be big floating-point numbers.
-  if (pRsvpRxMilSec < tScalMilSec)
+  if (sensedData.rsvp != 0)
     {
-      q = static_cast <uint16_t> (std::ceil (tScalMilSec / pRsvpRxMilSec));
-    }
-  else
-    {
-      q = 1;
+      //I am aware that two double variable are compared. I don't expect these two
+      //numbers to be big floating-point numbers.
+      if (pRsvpRxMilSec < tScalMilSec)
+        {
+          q = static_cast <uint16_t> (std::ceil (tScalMilSec / pRsvpRxMilSec));
+        }
+      else
+        {
+          q = 1;
+        }
+      NS_LOG_DEBUG ("tScalMilSec: " << tScalMilSec << " pRsvpRxMilSec: " << pRsvpRxMilSec);
+
     }
   uint16_t pPrimeRsvpRx = m_slTxPool->GetResvPeriodInSlots (GetBwpId (),
                                                             m_poolId,
@@ -1490,6 +1495,7 @@ NrUeMac::GetFutSlotsBasedOnSens (SensingData sensedData)
           listFutureSensTx.emplace_back (reTx2Slot);
         }
     }
+  NS_LOG_DEBUG ("q: " << q << " Size of listFutureSensTx: " << listFutureSensTx.size ());
 
   return listFutureSensTx;
 }
@@ -1522,13 +1528,6 @@ NrUeMac::DoReceiveSensingData (SensingData sensingData)
 
   if (m_enableSensing)
     {
-      if (sensingData.rsvp == 0)
-        {
-          //Ignore sensing data without a valid resource reservation period
-          //(e.g., SCI 1-A corresponds to a single-PDU transmission)
-          NS_LOG_INFO ("Ignoring sensing data without a valid resource reservation period");
-          return;
-        }
       //oldest data will be at the front of the queue
       m_sensingData.push_back (sensingData);
     }
