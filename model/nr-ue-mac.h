@@ -973,12 +973,16 @@ private:
    */
   uint8_t GetTotalSubCh (uint16_t poolId) const;
   /**
-   * \brief Update the sensing window
+   * \brief Remove sensed data older than T0 (sl-SensingWindow)
+   * Sensing data outside of the other window edge (Tproc0) is not removed but
+   * will be ignored later by the resource selection algorithm.
    * \param sfn The current system frame, subframe, and slot number. This SfnSf
    *        is aligned with the SfnSf of the physical layer.
-   * It will remove the sensing data, which lies outside the sensing window length.
+   * \param sensingWindow The window length in slots (parameter sl-SensingWindow)
+   * \param sensingData Reference to the list of SensingData items to be updated
+   * \param imsi The IMSI of this instance 
    */
-  void UpdateSensingWindow (const SfnSf& sfn);
+  void UpdateSensingWindow (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi);
   /**
    * \brief Compute the gaps in slots for the possible retransmissions
    *        indicated by an SCI 1-A.

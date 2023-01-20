@@ -711,7 +711,12 @@ NrUeMac::DoSlotIndication (const SfnSf &sfn)
     }
   if (m_nrSlUeMacSchedSapProvider)
     {
-      //MarshalGrantsToNewDataStructure (sfn);  // Temporary method
+      if (m_enableSensing)
+        {
+          UpdateSensingWindow (sfn,
+            m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (), m_poolId, m_nrSlUePhySapProvider->GetSlotPeriod ()),
+            m_sensingData, m_imsi);
+        }
       std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = GetNrSlTxOpportunities (sfn);
       for (const auto &itDst : m_sidelinkTxDestinations)
         {
@@ -1534,21 +1539,18 @@ NrUeMac::DoReceiveSensingData (SensingData sensingData)
 }
 
 void
-NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
+NrUeMac::UpdateSensingWindow (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi) 
 {
-  NS_LOG_FUNCTION (this << sfn);
+  NS_LOG_FUNCTION (this << sfn << sensingWindow << sensingData.size () << imsi);
 
-  uint16_t sensWindLen = m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (),
-                                                             m_poolId,
-                                                             m_nrSlUePhySapProvider->GetSlotPeriod ());
   //oldest sensing data is on the top of the list
-  auto it = m_sensingData.cbegin();
-  while (it != m_sensingData.cend ())
+  auto it = sensingData.cbegin();
+  while (it != sensingData.cend ())
     {
-      if (it->sfn.Normalize () < sfn.Normalize () - sensWindLen)
+      if (it->sfn.Normalize () < sfn.Normalize () - sensingWindow)
         {
-          NS_LOG_DEBUG ("IMSI " << m_imsi << " erasing SCI at sfn " << sfn << " received at " << it->sfn);
-          it = m_sensingData.erase (it);
+          NS_LOG_DEBUG ("IMSI " << imsi << " erasing SCI at sfn " << sfn << " received at " << it->sfn);
+          it = sensingData.erase (it);
         }
       else
         {
@@ -1559,11 +1561,7 @@ NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
         }
       ++it;
     }
-
-  //To keep the size of the buffer equal to [n – T0 , n – Tproc0)
-  //the other end of sensing buffer is trimmed in GetNrSlTxOpportunities.
 }
-
 
 void
 NrUeMac::DoReceivePsschPhyPdu (Ptr<PacketBurst> pdu)
@@ -1645,8 +1643,6 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
   NS_LOG_FUNCTION (this << " Frame " << sfn.GetFrame() << " Subframe " << +sfn.GetSubframe()
                         << " slot " << sfn.GetSlot () << " Normalized slot number " << sfn.Normalize ());
 
-  UpdateSensingWindow (sfn);
- 
   //check if we need to transmit PSCCH + PSSCH
   //We are starting with the transmission of data packets because if the buffer
   //at the RLC would be empty we just erase the grant of the current slot
