@@ -34,6 +34,32 @@ NrSlVarTtiAllocInfo::operator < (const NrSlVarTtiAllocInfo &rhs) const
   return (symStart < rhs.symStart);
 }
 
+std::ostream &operator<< (std::ostream &os, const SensingData& p)
+{
+  os << "SfnSf: " << p.sfn
+     << " rsvp: " << p.rsvp
+     << " sbChLength: " << +p.sbChLength
+     << " sbChStart: " << +p.sbChStart
+     << " prio: " << +p.prio
+     << " slRsrp: " << p.slRsrp
+     << " gapReTx1: " << +p.gapReTx1
+     << " sbChStartReTx1: " << +p.sbChStartReTx1
+     << " gapReTx2: " << +p.gapReTx2
+     << " sbChStartReTx2: " << +p.sbChStartReTx2;
+  return os;
+}
+
+std::ostream &operator<< (std::ostream &os, const SlotSensingData& p)
+{
+  os << "SfnSf: " << p.sfn
+     << " rsvp: " << p.rsvp
+     << " sbChLength: " << +p.sbChLength
+     << " sbChStart: " << +p.sbChStart
+     << " prio: " << +p.prio
+     << " slRsrp: " << p.slRsrp;
+  return os;
+}
+
 std::ostream &operator<< (std::ostream &os, const NrSlSlotAlloc& p)
 {
   os << "SfnSf: " << p.sfn

@@ -375,6 +375,22 @@ struct SlotSensingData
 };
 
 /**
+ * \brief Stream output operator for SensingData
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, SensingData const & p);
+
+/**
+ * \brief Stream output operator for SlotSensingData
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, SlotSensingData const & p);
+
+/**
  * \brief Stream output operator for NrSlSlotAlloc
  * \param os output stream
  * \param p struct whose parameter to output
