@@ -39,6 +39,9 @@
 #include <unordered_set>
 #include <map>
 
+// test class outside of namespace ns3
+class NrSensingTestCase;
+
 namespace ns3 {
 
 class NrUePhySapUser;
@@ -144,6 +147,8 @@ class NrUeMac : public Object
   friend class MemberNrSlUeMacCschedSapUser;
   /// allow MemberNrSlUeMacSchedSapUser<NrUeMac> class friend access
   friend class MemberNrSlUeMacSchedSapUser;
+  // Unit-test access to protected members
+  friend class ::NrSensingTestCase;
 
 public:
   /**

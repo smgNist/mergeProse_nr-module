@@ -266,6 +266,7 @@ set(test_sources
     test/nr-power-allocation.cc
     test/nr-test-harq.cc
     test/test-nr-sl-sci-headers.cc
+    test/nr-sensing-test.cc
 )
 
 build_lib(
