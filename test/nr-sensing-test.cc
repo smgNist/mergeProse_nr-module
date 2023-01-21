@@ -64,7 +64,7 @@
  * If the resources needed for the transport block are two subchannels wide,
  * at the end of the first pass of the algorithm, the algorithm should
  * evaluate and decide that insufficient resources are available,
- * and should increment the threshold by 3 dB and go back to step 4.
+ * and should increment the threshold by 3 dB and go back to step 4.  
  * Instead, the current code evaluates that all 15 slots are available
  * (because they each have one subchannel out of the two available)
  * and passes this list to the scheduler, with each slot indicating that
@@ -288,13 +288,67 @@ NrSensingTestCase::DoRun ()
     }
 }
 
+/**
+ * \brief UpdateSensingWindow testcase
+ */
+class NrSlUpdateSensingWindowTest : public TestCase
+{
+public:
+  /**
+   * \brief Create NrSlUpdateSensingWindowTest
+   * \param name Name of the test
+   */
+  NrSlUpdateSensingWindowTest (const std::string &name)
+    : TestCase (name) {}
+
+private:
+  virtual void DoRun (void) override;
+};
+
+void
+NrSlUpdateSensingWindowTest::DoRun ()
+{
+  NS_LOG_FUNCTION (this);
+  auto nrUeMac = CreateObject<NrUeMac> ();
+  uint16_t sensingWindow = 100;
+  uint64_t imsi = 1;
+
+  // Assume that simulation time is at the time corresponding to frame 203,
+  // subframe 0, and slot 0 with numerology 2.
+  SfnSf sfnNow {203, 0, 0, 2};
+  // If sensed data corresponds to the previous slot, it should be retained.
+  SfnSf sfnNowMinusOne {202, 9, 3, 2};
+  // Assume a sensing window of 100 slots; T0 should be 100 slots behind
+  // the current time.  With numerology 2, each frame is 40 slots, so 100
+  // slots in the past is 2.5 frames, or SfnSf (200, 5, 0);
+  SfnSf sfnT0 {200, 5, 0, 2};
+  // If sensed data corresponds to one slot earlier than T0, it should be
+  // trimmed by UpdateSensingWindow ().
+  SfnSf sfnT0MinusOne {200, 4, 3, 2};
+
+  // SensingData constructor takes a lot of parameters but only the SfnSf
+  // is used in this test.
+  std::list<SensingData> sensingData;
+  sensingData.emplace_back(std::move(SensingData (sfnT0MinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
+  NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 1, "sensing data should have one element");
+  nrUeMac->UpdateSensingWindow (sfnNow, sensingWindow, sensingData, imsi);
+  NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 0, "sensing data should now be empty");
+  sensingData.emplace_back(std::move(SensingData (sfnT0, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
+  sensingData.emplace_back(std::move(SensingData (sfnNowMinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
+  NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 2, "sensing data should have two elements");
+  nrUeMac->UpdateSensingWindow (sfnNow, sensingWindow, sensingData, imsi);
+  NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 2, "sensing data should still have two elements");
+}
+
 class NrSensingTestSuite : public TestSuite
 {
 public:
   NrSensingTestSuite () : TestSuite ("nr-sensing", SYSTEM)
   {
     AddTestCase (new NrSensingTestCase ("Check algorithm iterating steps 4-7 when one subchannel occupied"), QUICK);
+    AddTestCase (new NrSlUpdateSensingWindowTest ("Check UpdateSensingWindow"), QUICK);
   }
 };
 
 static NrSensingTestSuite nrSensingTestSuite; //!< Nr sensing test suite
+
