@@ -713,7 +713,7 @@ NrUeMac::DoSlotIndication (const SfnSf &sfn)
     {
       if (m_enableSensing)
         {
-          UpdateSensingWindow (sfn,
+          RemoveOldSensingData (sfn,
             m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (), m_poolId, m_nrSlUePhySapProvider->GetSlotPeriod ()),
             m_sensingData, m_imsi);
         }
@@ -1310,7 +1310,7 @@ NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
       //Copy the buffer so we can trim the buffer as per Tproc0.
       //Note, we do not need to delete the latest measurement
       //from the original buffer because it will be deleted
-      //by UpdateSensingWindow method once it is outdated.
+      //by RemoveOldSensingData method once it is outdated.
 
       auto sensedData = m_sensingData;
 
@@ -1539,7 +1539,7 @@ NrUeMac::DoReceiveSensingData (SensingData sensingData)
 }
 
 void
-NrUeMac::UpdateSensingWindow (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi) 
+NrUeMac::RemoveOldSensingData (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi) 
 {
   NS_LOG_FUNCTION (this << sfn << sensingWindow << sensingData.size () << imsi);
 

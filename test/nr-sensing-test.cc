@@ -289,16 +289,16 @@ NrSensingTestCase::DoRun ()
 }
 
 /**
- * \brief UpdateSensingWindow testcase
+ * \brief RemoveOldSensingData testcase
  */
-class NrSlUpdateSensingWindowTest : public TestCase
+class NrSlRemoveOldSensingDataTest : public TestCase
 {
 public:
   /**
-   * \brief Create NrSlUpdateSensingWindowTest
+   * \brief Create NrSlRemoveOldSensingDataTest
    * \param name Name of the test
    */
-  NrSlUpdateSensingWindowTest (const std::string &name)
+  NrSlRemoveOldSensingDataTest (const std::string &name)
     : TestCase (name) {}
 
 private:
@@ -306,7 +306,7 @@ private:
 };
 
 void
-NrSlUpdateSensingWindowTest::DoRun ()
+NrSlRemoveOldSensingDataTest::DoRun ()
 {
   NS_LOG_FUNCTION (this);
   auto nrUeMac = CreateObject<NrUeMac> ();
@@ -323,7 +323,7 @@ NrSlUpdateSensingWindowTest::DoRun ()
   // slots in the past is 2.5 frames, or SfnSf (200, 5, 0);
   SfnSf sfnT0 {200, 5, 0, 2};
   // If sensed data corresponds to one slot earlier than T0, it should be
-  // trimmed by UpdateSensingWindow ().
+  // trimmed by RemoveOldSensingData ().
   SfnSf sfnT0MinusOne {200, 4, 3, 2};
 
   // SensingData constructor takes a lot of parameters but only the SfnSf
@@ -331,12 +331,12 @@ NrSlUpdateSensingWindowTest::DoRun ()
   std::list<SensingData> sensingData;
   sensingData.emplace_back(std::move(SensingData (sfnT0MinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 1, "sensing data should have one element");
-  nrUeMac->UpdateSensingWindow (sfnNow, sensingWindow, sensingData, imsi);
+  nrUeMac->RemoveOldSensingData (sfnNow, sensingWindow, sensingData, imsi);
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 0, "sensing data should now be empty");
   sensingData.emplace_back(std::move(SensingData (sfnT0, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
   sensingData.emplace_back(std::move(SensingData (sfnNowMinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 2, "sensing data should have two elements");
-  nrUeMac->UpdateSensingWindow (sfnNow, sensingWindow, sensingData, imsi);
+  nrUeMac->RemoveOldSensingData (sfnNow, sensingWindow, sensingData, imsi);
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 2, "sensing data should still have two elements");
 }
 
@@ -346,7 +346,7 @@ public:
   NrSensingTestSuite () : TestSuite ("nr-sensing", SYSTEM)
   {
     AddTestCase (new NrSensingTestCase ("Check algorithm iterating steps 4-7 when one subchannel occupied"), QUICK);
-    AddTestCase (new NrSlUpdateSensingWindowTest ("Check UpdateSensingWindow"), QUICK);
+    AddTestCase (new NrSlRemoveOldSensingDataTest ("Check RemoveOldSensingData"), QUICK);
   }
 };
 

@@ -41,7 +41,7 @@
 
 // test classes outside of namespace ns3
 class NrSensingTestCase;
-class NrSlUpdateSensingWindowTest;
+class NrSlRemoveOldSensingDataTest;
 
 namespace ns3 {
 
@@ -150,7 +150,7 @@ class NrUeMac : public Object
   friend class MemberNrSlUeMacSchedSapUser;
   // Unit-test access to protected/private members
   friend class ::NrSensingTestCase;
-  friend class ::NrSlUpdateSensingWindowTest;
+  friend class ::NrSlRemoveOldSensingDataTest;
 
 public:
   /**
@@ -984,7 +984,7 @@ private:
    * \param sensingData Reference to the list of SensingData items to be updated
    * \param imsi The IMSI of this instance 
    */
-  void UpdateSensingWindow (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi);
+  void RemoveOldSensingData (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi);
   /**
    * \brief Compute the gaps in slots for the possible retransmissions
    *        indicated by an SCI 1-A.
