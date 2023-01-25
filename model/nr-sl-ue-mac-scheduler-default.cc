@@ -246,7 +246,44 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso;
   if (!grantFoundForDest && bufferSize && !ids.empty ())
     {
-      availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn);
+      // No future grants exist but buffered data exists for an LC.
+      // Determine the transport block size for the amount of buffered data
+      //
+      // The first step is to calculate the number of subchannels necessary
+      // to schedule the buffered data.  This will yield the L_subch
+      // parameter in the algorithm
+      //
+      // FIXME:  In current code, this calculation occurs after candidate
+      // slots have been selected, and the candidate slots are probed to
+      // find the number of symbols per slot and the subchannel size.
+      // Here, for now, we assume the number of symbols per slot is constant
+      // (12), and we should use resource pool information to determine the
+      // subchannel size in PRBs.  The number of symbols per slot will
+      // depend on whether PSFCH is present, but for the moment, PSFCH is
+      // not modeled.  We iterate on the number of subchannels until we
+      // find the required number.  It is not clear whether we should
+      // still proceed with a smaller number of subchannels (partially
+      // satisfying the buffered data) if there are not enough candidate
+      // resources for everything.
+      // 
+      // The following do/while loop iterates until providing a transport
+      // block size large enough to cover the buffer size plus 5 bytes for
+      // SCI-2A information.
+      uint16_t lSubch = 0;
+      uint32_t tbSize = 0;
+      uint8_t dstMcs = itDstInfo->second->GetDstMcs ();
+      uint16_t symbolsPerSlot = 12; // FIXME: Fetch from configuration
+      uint16_t subChannelSize = 50; // FIXME: Fetch from configuration
+      do
+        {
+          lSubch++;
+          tbSize = CalculateTbSize (GetNrSlAmc (), dstMcs, symbolsPerSlot, lSubch, subChannelSize);
+        }
+      while (tbSize < bufferSize + 5);
+      NrSlTransmissionParams params {lcgMap.begin ()->second->GetLcPriority (lcVector.at (0)),
+        lcgMap.begin ()->second->GetLcPdb (lcVector.at (0)), lSubch,
+        lcgMap.begin ()->second->GetLcRri (lcVector.at (0))};
+      availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn, params);
       auto filteredReso = FilterTxOpportunities (availableReso);
       if (!filteredReso.empty ())
         {
@@ -281,7 +318,24 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
             {
               return;  // No HARQ IDs available
             }
-          availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn);
+          // The following do/while loop iterates until providing a transport
+          // block size large enough to cover the buffer size plus 5 bytes for
+          // SCI-2A information.
+          uint16_t lSubch = 0;
+          uint32_t tbSize = 0;
+          uint8_t dstMcs = itDstInfo->second->GetDstMcs ();
+          uint16_t symbolsPerSlot = 12; // FIXME: Fetch from configuration
+          uint16_t subChannelSize = 50; // FIXME: Fetch from configuration
+          do
+            {
+              lSubch++;
+              tbSize = CalculateTbSize (GetNrSlAmc (), dstMcs, symbolsPerSlot, lSubch, subChannelSize);
+            }
+          while (tbSize < bufferSize + 5);
+          NrSlTransmissionParams params {lcgMap.begin ()->second->GetLcPriority (lcVector.at (0)),
+            lcgMap.begin ()->second->GetLcPdb (lcVector.at (0)), lSubch,
+            lcgMap.begin ()->second->GetLcRri (lcVector.at (0))};
+          availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn, params);
           auto filteredReso = FilterTxOpportunities (availableReso);
           if (!filteredReso.empty ())
             {
@@ -347,7 +401,24 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
             {
               return;  // No HARQ IDs available
             }
-          availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn);
+          // The following do/while loop iterates until providing a transport
+          // block size large enough to cover the buffer size plus 5 bytes for
+          // SCI-2A information.
+          uint16_t lSubch = 0;
+          uint32_t tbSize = 0;
+          uint8_t dstMcs = itDstInfo->second->GetDstMcs ();
+          uint16_t symbolsPerSlot = 12; // FIXME: Fetch from configuration
+          uint16_t subChannelSize = 50; // FIXME: Fetch from configuration
+          do
+            {
+              lSubch++;
+              tbSize = CalculateTbSize (GetNrSlAmc (), dstMcs, symbolsPerSlot, lSubch, subChannelSize);
+            }
+          while (tbSize < bufferSize + 5);
+          NrSlTransmissionParams params {lcgMap.begin ()->second->GetLcPriority (lcVector.at (0)),
+            lcgMap.begin ()->second->GetLcPdb (lcVector.at (0)), lSubch,
+            lcgMap.begin ()->second->GetLcRri (lcVector.at (0))};
+          availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn, params);
           auto filteredReso = FilterTxOpportunities (availableReso);
           if (!filteredReso.empty ())
             {

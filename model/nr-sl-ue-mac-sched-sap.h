@@ -33,6 +33,21 @@ namespace ns3 {
 /**
  * \ingroup scheduler
  *
+ * \brief Structure to pass parameters to trigger the selection of candidate
+ * resources as per TR 38.214 Section 8.1.4
+ */
+struct NrSlTransmissionParams
+{
+  NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx);
+  uint8_t m_priority {0};  //!< L1 priority prio_TX
+  Time m_packetDelayBudget {Seconds (0)}; //!< remaining packet delay budget
+  uint16_t m_lSubch {0}; //!< L_subCH; number of subchannels to be used
+  Time m_pRsvpTx {0}; //!< resource reservation interval
+};
+
+/**
+ * \ingroup scheduler
+ *
  * \brief The SAP interface between NR UE MAC and NR SL UE scheduler
  */
 class NrSlUeMacSchedSapProvider
@@ -228,6 +243,14 @@ public:
   virtual uint8_t GetSlMaxTxTransNumPssch () const = 0;
 
 };
+
+/**
+ * \brief Stream output operator
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlTransmissionParams const & p);
 
 /**
  * \brief Stream output operator

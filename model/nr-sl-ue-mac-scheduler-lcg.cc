@@ -180,6 +180,13 @@ NrSlUeMacSchedulerLCG::GetLcRri (uint8_t lcId)
   return m_lcMap.at (lcId)->m_rri;
 }
 
+Time
+NrSlUeMacSchedulerLCG::GetLcPdb (uint8_t lcId)
+{
+  NS_ASSERT (Contains (lcId));
+  return m_lcMap.at (lcId)->m_pdb;
+}
+
 void
 NrSlUeMacSchedulerLCG::AssignedData (uint8_t lcId, uint32_t size)
 {

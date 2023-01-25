@@ -19,6 +19,24 @@
 
 namespace ns3 {
 
+NrSlTransmissionParams::NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx)
+ : m_priority (prio),
+   m_packetDelayBudget (pdb),
+   m_lSubch (lSubch),
+   m_pRsvpTx (pRsvpTx)
+{
+}
+
+std::ostream &operator<< (std::ostream &os,
+                          const NrSlTransmissionParams &p)
+{
+  os << "Prio: " << +p.m_priority
+     << ", PDB: " << p.m_packetDelayBudget.As (Time::MS)
+     << ", subchannels: " << p.m_lSubch
+     << ", RRI: " << p.m_pRsvpTx.As (Time::MS);
+  return os;
+}
+
 std::ostream &operator<< (std::ostream &os,
                           const NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams &p)
 {

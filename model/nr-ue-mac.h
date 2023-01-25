@@ -253,10 +253,11 @@ public:
    * \brief Get NR sidelink candidate single-slot resources
    * 
    * \param sfn The current system frame, subframe, and slot number.
+   * \param params The input transmission parameters for the algorithm
    * \return The list of the transmit opportunities (slots) as per the TDD pattern
    *         and the NR SL bitmap
    */
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResources (const SfnSf& sfn);
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResources (const SfnSf& sfn, const NrSlTransmissionParams& params);
 
   /**
    * \brief Assign a fixed random variable stream number to the random variables

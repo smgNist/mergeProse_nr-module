@@ -257,6 +257,13 @@ public:
    */
   Time GetLcRri (uint8_t lcId);
 
+  /**
+   * \brief Get the LC remaining packet delay budget
+   *
+   * \param lcId The LC id
+   * \return The remaining packet delay budget of the LC
+   */
+  Time GetLcPdb (uint8_t lcId);
 
   /**
    * \brief Inform the LCG of the assigned data to a LC id

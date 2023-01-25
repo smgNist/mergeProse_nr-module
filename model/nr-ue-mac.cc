@@ -1276,7 +1276,7 @@ NrUeMac::AssignStreams (int64_t stream)
 //NR SL
 
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
-NrUeMac::GetNrSlCandidateResources (const SfnSf& sfn)
+NrUeMac::GetNrSlCandidateResources (const SfnSf& sfn, const NrSlTransmissionParams& params)
 {
   return GetNrSlTxOpportunities (sfn);
 }
