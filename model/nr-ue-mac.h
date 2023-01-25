@@ -36,6 +36,7 @@
 #include "nr-sl-ue-phy-sap.h"
 #include "nr-sl-ue-mac-sched-sap.h"
 #include "nr-sl-phy-mac-common.h"
+#include "nr-sl-ue-mac-scheduler.h"
 #include <unordered_set>
 #include <map>
 
@@ -236,6 +237,26 @@ public:
    * \return number of HARQ processes
    */
   uint8_t GetNumHarqProcess () const;
+
+  /**
+   * \brief Set pointer to NR sidelink scheduler
+   * \param scheduler Pointer to scheduler
+   */
+  void SetNrSlUeMacScheduler (Ptr<NrSlUeMacScheduler> scheduler);
+
+  /**
+   * In resource allocation mode 2, the higher layer can request the UE to
+   * determine a subset of resources from which the higher layer will select
+   * resources for PSSCH/PSCCH transmission.  This method implements the
+   * algorithm specified in 3GPP TR 38.214 v16.7.0  Section 8.1.4.
+   *
+   * \brief Get NR sidelink candidate single-slot resources
+   * 
+   * \param sfn The current system frame, subframe, and slot number.
+   * \return The list of the transmit opportunities (slots) as per the TDD pattern
+   *         and the NR SL bitmap
+   */
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResources (const SfnSf& sfn);
 
   /**
    * \brief Assign a fixed random variable stream number to the random variables
@@ -1030,6 +1051,7 @@ private:
   NrSlUeMacCschedSapUser* m_nrSlUeMacCschedSapUser         {nullptr};  //!< SAP User
   NrSlUeMacCschedSapProvider* m_nrSlUeMacCschedSapProvider {nullptr};  //!< SAP Provider
   NrSlUeMacSchedSapProvider* m_nrSlUeMacSchedSapProvider   {nullptr};  //!< SAP Provider
+  Ptr<NrSlUeMacScheduler> m_nrSlUeMacScheduler {nullptr}; //!< Pointer to scheduler
   Time m_pRsvpTx {MilliSeconds (std::numeric_limits <uint8_t>::max ())}; //!< Resource Reservation Interval for NR Sidelink in ms
   std::map<std::pair<uint32_t, uint8_t>, std::queue<NrSlUeMacSchedSapUser::NrSlGrant> > m_slGrants; //!< Grants provided by the sidelink scheduler
   double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero

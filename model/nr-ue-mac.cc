@@ -425,6 +425,11 @@ NrUeMac::DoDispose ()
   delete m_nrSlUeMacSchedSapUser;
   m_nrSlHarq->Dispose ();
   m_nrSlHarq = nullptr;
+  if (m_nrSlUeMacScheduler)
+    {
+      m_nrSlUeMacScheduler->Dispose ();
+      m_nrSlUeMacScheduler = nullptr;
+    }
   m_slTxPool = nullptr;
   m_slRxPool = nullptr;
 }
@@ -515,6 +520,13 @@ uint8_t
 NrUeMac::GetNumHarqProcess () const
 {
   return m_numHarqProcess;
+}
+
+void
+NrUeMac::SetNrSlUeMacScheduler (Ptr<NrSlUeMacScheduler> scheduler)
+{
+  NS_LOG_FUNCTION (this << scheduler);
+  m_nrSlUeMacScheduler = scheduler;
 }
 
 // forwarded from MAC SAP
@@ -717,10 +729,9 @@ NrUeMac::DoSlotIndication (const SfnSf &sfn)
             m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (), m_poolId, m_nrSlUePhySapProvider->GetSlotPeriod ()),
             m_sensingData, m_imsi);
         }
-      std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = GetNrSlTxOpportunities (sfn);
       for (const auto &itDst : m_sidelinkTxDestinations)
         {
-          m_nrSlUeMacSchedSapProvider->SchedUeNrSlTriggerReq (sfn, itDst.first, availableReso, m_nrSlHarq->GetAvailableHarqIds ());
+          m_nrSlUeMacSchedSapProvider->SchedUeNrSlTriggerReq (sfn, itDst.first, m_nrSlHarq->GetAvailableHarqIds ());
         }
     }
   if (m_nrSlUeCmacSapUser != nullptr)
@@ -1263,6 +1274,12 @@ NrUeMac::AssignStreams (int64_t stream)
   return 1;
 }
 //NR SL
+
+std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
+NrUeMac::GetNrSlCandidateResources (const SfnSf& sfn)
+{
+  return GetNrSlTxOpportunities (sfn);
+}
 
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
 NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)

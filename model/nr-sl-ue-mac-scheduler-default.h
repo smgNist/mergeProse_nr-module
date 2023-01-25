@@ -85,10 +85,9 @@ public:
    *
    * \param sfn The SfnSf
    * \param dstL2Id The destination layer 2 id
-   * \param availableReso The list of NrSlUeMacSchedSapProvider::NrSlSlotInfo
    * \param ids available HARQ process IDs
    */
-  virtual void DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& availableReso, const std::deque<uint8_t>& ids) override;
+  virtual void DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::deque<uint8_t>& ids) override;
   /**
    * \brief Attempt to select new grant from the selection window
    *
@@ -221,6 +220,9 @@ public:
    */
   uint8_t GetRv (uint8_t txNumTb) const;
 
+  // From parent class
+  void SetNrUeMac (Ptr<NrUeMac> nrUeMac) override;
+
   /**
    * \brief Assign a fixed random variable stream number to the random variables
    * used by this model. Return the number of streams (possibly zero) that
@@ -233,6 +235,24 @@ public:
 
 
 protected:
+  // Inherited from Object
+  void DoDispose () override;
+  
+  /**
+   * \brief Calculate the transport block size for input parameters
+   *
+   * For a given modulation and coding scheme, number of subchannels,
+   * subchannel size, and symbols per slot, calculate the resulting transport
+   * block size in bytes.
+   * \param nrAmc pointer to modulation and coding model
+   * \param dstMcs MCS value to use
+   * \param symbolsPerSlot number of symbols to assume in a slot
+   * \param availableSubChannels number of subchannels
+   * \param subChannelSize subchannel size in physical resource blocks
+   * \return transport block size in bytes
+   */
+  uint32_t CalculateTbSize (Ptr<const NrAmc> nrAmc, uint8_t dstMcs, uint16_t symbolsPerSlot, uint16_t availableSubChannels, uint16_t subChannelSize) const;
+
   /**
    * \brief Do the NE Sidelink allocation
    *
@@ -423,6 +443,7 @@ private:
   uint8_t m_initialNrSlMcs   {0}; //!< Initial (or fixed) value for NR SL MCS
 
   std::map<uint32_t, struct NrSlUeMacSchedSapUser::NrSlGrantInfo> m_grantInfo;
+  Ptr<NrUeMac> m_nrUeMac {nullptr}; //!< Pointer to associated NrUeMac object
   Ptr<UniformRandomVariable> m_ueSelectedUniformVariable; //!< uniform random variable used for NR Sidelink
   double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero
   uint8_t m_reselCounter {0}; //!< The resource selection counter

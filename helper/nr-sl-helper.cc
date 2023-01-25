@@ -187,6 +187,8 @@ NrSlHelper::PrepareSingleUeForSidelink (Ptr<NrUeNetDevice> nrUeDev, const std::s
       Ptr<NrSlUeMacScheduler> sched = CreateNrSlUeSched ();
       NS_ABORT_MSG_IF (sched == nullptr, "sched is null");
       ccMap.at (itBwps)->SetNrSlUeMacScheduler (sched);
+      sched->SetNrUeMac (nrUeDev->GetMac (itBwps));
+      nrUeDev->GetMac (itBwps)->SetNrSlUeMacScheduler (sched);
       //SAPs between the NR SL UE MAC scheduler and NrUeMac
       sched->SetNrSlUeMacCschedSapUser (nrUeDev->GetMac (itBwps)->GetNrSlUeMacCschedSapUser ());
       sched->SetNrSlUeMacSchedSapUser (nrUeDev->GetMac (itBwps)->GetNrSlUeMacSchedSapUser ());

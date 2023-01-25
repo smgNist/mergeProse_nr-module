@@ -156,10 +156,9 @@ public:
    *
    * \param sfn The SfnSf
    * \param dstL2Id The destination layer 2 id
-   * \param params NrSlUeMacSchedSapProvider::NrSlSlotInfo
    * \param ids available HARQ process IDs
    */
-  virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlSlotInfo>& params, const std::deque<uint8_t>& ids) = 0;
+  virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::deque<uint8_t>& ids) = 0;
   /**
    * \brief Tell the scheduler that a new slot has started
    * \param sfn Ths current SfnSf

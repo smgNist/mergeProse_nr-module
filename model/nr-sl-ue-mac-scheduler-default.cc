@@ -23,7 +23,7 @@
 #include <ns3/boolean.h>
 #include <ns3/uinteger.h>
 #include <ns3/pointer.h>
-
+#include "nr-ue-mac.h"
 
 namespace ns3 {
 
@@ -223,7 +223,7 @@ NrSlUeMacSchedulerDefault::GetUpperBoundReselCounter (uint16_t pRsrv) const
 
 
 void
-NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& availableReso, const std::deque<uint8_t>& ids)
+NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::deque<uint8_t>& ids)
 {
   NS_LOG_FUNCTION (this << dstL2Id);
 
@@ -242,10 +242,11 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
 
   // Determine if any grants need to be created or refreshed
   const auto itGrantInfo = m_grantInfo.find (dstL2Id);
-  bool foundDest = itGrantInfo != m_grantInfo.end () ? true : false;
-
-  if (!foundDest && bufferSize && !ids.empty ())
+  bool grantFoundForDest = itGrantInfo != m_grantInfo.end () ? true : false;
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso;
+  if (!grantFoundForDest && bufferSize && !ids.empty ())
     {
+      availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn);
       auto filteredReso = FilterTxOpportunities (availableReso);
       if (!filteredReso.empty ())
         {
@@ -272,7 +273,7 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
           return;
         }
     }
-  else if (foundDest)
+  else if (grantFoundForDest)
     {
       if (isLcDynamic)
         {
@@ -280,6 +281,7 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
             {
               return;  // No HARQ IDs available
             }
+          availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn);
           auto filteredReso = FilterTxOpportunities (availableReso);
           if (!filteredReso.empty ())
             {
@@ -345,6 +347,7 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
             {
               return;  // No HARQ IDs available
             }
+          availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn);
           auto filteredReso = FilterTxOpportunities (availableReso);
           if (!filteredReso.empty ())
             {
@@ -731,6 +734,13 @@ NrSlUeMacSchedulerDefault::GetRv (uint8_t txNumTb) const
   return rv;
 }
 
+void
+NrSlUeMacSchedulerDefault::SetNrUeMac (Ptr<NrUeMac> nrUeMac)
+{
+  NS_LOG_FUNCTION (this << nrUeMac);
+  m_nrUeMac = nrUeMac;
+}
+
 int64_t
 NrSlUeMacSchedulerDefault::AssignStreams (int64_t stream)
 {
@@ -739,6 +749,24 @@ NrSlUeMacSchedulerDefault::AssignStreams (int64_t stream)
   m_ueSelectedUniformVariable->SetStream (stream + 1);
   return 2;
 }
+
+void
+NrSlUeMacSchedulerDefault::DoDispose ()
+{
+  NS_LOG_FUNCTION (this);
+  m_nrUeMac = nullptr;
+}
+
+uint32_t
+NrSlUeMacSchedulerDefault::CalculateTbSize (Ptr<const NrAmc> nrAmc, uint8_t dstMcs, uint16_t symbolsPerSlot, uint16_t availableSubChannels, uint16_t subChannelSize) const
+{
+  NS_LOG_FUNCTION (this << nrAmc << dstMcs << symbolsPerSlot << availableSubChannels << subChannelSize);
+  NS_ASSERT_MSG (availableSubChannels > 0, "Must have at least one available subchannel");
+  NS_ASSERT_MSG (subChannelSize > 0, "Must have non-zero subChannelSize");
+  NS_ASSERT_MSG (symbolsPerSlot <= 14, "Invalid number of symbols per slot");
+  return nrAmc->CalculateTbSize (dstMcs, subChannelSize * availableSubChannels * symbolsPerSlot);
+}
+
 
 bool
 NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& txOpps,
