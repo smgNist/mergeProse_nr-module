@@ -959,14 +959,6 @@ private:
    */
   void DoNrSlSlotIndication (const SfnSf& sfn);
   /**
-   * \brief Get NR Sidelink transmit opportunities
-   * \param sfn The current system frame, subframe, and slot number. This SfnSf
-   *        is aligned with the SfnSf of the physical layer.
-   * \return The list of the transmit opportunities (slots) asper the TDD pattern
-   *         and the NR SL bitmap
-   */
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlTxOpportunities (const SfnSf& sfn);
-  /**
    * \brief Get the list of the future transmission slots based on sensed data.
    * \param sensedData The data extracted from the sensed SCI 1-A.
    * \return The list of the future transmission slots based on sensed data.

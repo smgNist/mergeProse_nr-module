@@ -37,7 +37,7 @@
  *
  * This testcase creates instances of a resource pool (with two subchannels),
  * an NrUeMac and an NrUePhy, and configures enough of these objects to
- * support the scheduling process (NrUeMac::GetNrSlTxOpportunities).
+ * support the scheduling process (NrUeMac::GetNrSlCandidateResources).
  * Configuration is based heavily on the example program
  * cttc-nr-v2x-demo-simple.cc, except that two subchannels are used.
  * The sensing window is 100 ms (400 slots), and the selection window is
@@ -52,7 +52,7 @@
  * object in lieu of actual sensing.
  *
  * At time 2.11 sec (corresponding to the first sensing time found in
- * cttc-nr-v2x-demo-simple), the test calls GetNrSlTxOpportunities().
+ * cttc-nr-v2x-demo-simple), the test calls GetNrSlCandidateResources().
  * This code therefore sets the Sfn to a time corresponding to 2.11 sec
  * and runs the algorithm.  The ns-3 code follows most of the algorithm in
  * TS 38.214 and projects the (past) sensed transmissions into the
@@ -278,7 +278,8 @@ NrSensingTestCase::DoRun ()
 
   // Call the sensing algorithm and inspect the list of slots that result.
   // This list would normally be passed to a scheduler as a next step.
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = nrUeMac->GetNrSlTxOpportunities (currentSfn);
+  NrSlTransmissionParams params {0, MilliSeconds (20), 1, MilliSeconds (100)};
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = nrUeMac->GetNrSlCandidateResources (currentSfn, params);
   for (const NrSlUeMacSchedSapProvider::NrSlSlotInfo& slot : availableReso)
     {
       for (const uint8_t& it : slot.occupiedSbCh)

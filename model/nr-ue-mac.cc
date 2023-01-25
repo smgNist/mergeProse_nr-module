@@ -1278,13 +1278,7 @@ NrUeMac::AssignStreams (int64_t stream)
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
 NrUeMac::GetNrSlCandidateResources (const SfnSf& sfn, const NrSlTransmissionParams& params)
 {
-  return GetNrSlTxOpportunities (sfn);
-}
-
-std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
-NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
-{
-  NS_LOG_FUNCTION (this << sfn.GetFrame() << +sfn.GetSubframe() << sfn.GetSlot ());
+  NS_LOG_FUNCTION (this << sfn.GetFrame() << +sfn.GetSubframe() << sfn.GetSlot () << params);
 
   //NR module supported candSsResoA list
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> nrCandSsResoA;
