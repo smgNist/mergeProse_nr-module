@@ -19,11 +19,12 @@
 
 namespace ns3 {
 
-NrSlTransmissionParams::NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx)
+NrSlTransmissionParams::NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx, uint16_t cResel)
  : m_priority (prio),
    m_packetDelayBudget (pdb),
    m_lSubch (lSubch),
-   m_pRsvpTx (pRsvpTx)
+   m_pRsvpTx (pRsvpTx),
+   m_cResel (cResel)
 {
 }
 
@@ -33,7 +34,8 @@ std::ostream &operator<< (std::ostream &os,
   os << "Prio: " << +p.m_priority
      << ", PDB: " << p.m_packetDelayBudget.As (Time::MS)
      << ", subchannels: " << p.m_lSubch
-     << ", RRI: " << p.m_pRsvpTx.As (Time::MS);
+     << ", RRI: " << p.m_pRsvpTx.As (Time::MS)
+     << ", Cresel: " << p.m_cResel;
   return os;
 }
 
@@ -61,7 +63,9 @@ std::ostream &operator<< (std::ostream &os,
      << " PsschSymStart: " << p.slPsschSymStart
      << " PsschSymLength: " << p.slPsschSymLength
      << " SubchannelSize: " << p.slSubchannelSize
-     << " MaxNumPerReserve: " << p.slMaxNumPerReserve;
+     << " MaxNumPerReserve: " << p.slMaxNumPerReserve
+     << " SubchannelStart: " << +p.slSubchannelStart
+     << " SubchannelLength: " << +p.slSubchannelLength;
   if (p.occupiedSbCh.size () > 0)
     {
       os << " OccupiedSbCh:";

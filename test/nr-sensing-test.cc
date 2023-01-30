@@ -246,8 +246,6 @@ NrSensingTestCase::DoRun ()
   nrUeMac->SetPhySapProvider (nrUePhy->GetPhySapProvider ());
   nrUeMac->SetNrSlUePhySapProvider (nrUePhy->GetNrSlUePhySapProvider ());
   nrUeMac->SetAttribute ("EnableSensing", BooleanValue (true));
-  // m_cResel is normally set only during DoNrSlSlotIndication () (not called bythis test)
-  nrUeMac->m_cResel = 5;
   nrUePhy->SetBwpId (0);
   nrUePhy->DoSetCellId (0);
   nrUePhy->SetSymbolsPerSlot (14);
@@ -278,7 +276,8 @@ NrSensingTestCase::DoRun ()
 
   // Call the sensing algorithm and inspect the list of slots that result.
   // This list would normally be passed to a scheduler as a next step.
-  NrSlTransmissionParams params {0, MilliSeconds (20), 1, MilliSeconds (100)};
+  uint16_t cResel = 5;
+  NrSlTransmissionParams params {0, MilliSeconds (20), 1, MilliSeconds (100), cResel};
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = nrUeMac->GetNrSlCandidateResources (currentSfn, params);
   for (const NrSlUeMacSchedSapProvider::NrSlSlotInfo& slot : availableReso)
     {

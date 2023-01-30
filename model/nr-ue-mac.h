@@ -260,6 +260,36 @@ public:
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResources (const SfnSf& sfn, const NrSlTransmissionParams& params);
 
   /**
+   * \brief Get the reservation period in slots
+   *
+   * Wrapper method that calls NrSlCommResourcePool::GetResvPeriodInSlots
+   *
+   * \param resvPeriod The reservation period
+   * \return The reservation period in slots
+   */
+  uint16_t GetResvPeriodInSlots (Time resvPeriod) const;
+
+  /**
+   * \brief Get NR Sidelink subchannel size
+   *
+   * Wrapper method that calls NrSlCommResourcePool::GetNrSlSubChSize
+   *
+   * \return The subchannel size in RBs
+   */
+  uint16_t GetNrSlSubChSize () const;
+
+  /**
+   * \brief Get the number of PSSCH symbols per slot
+   *
+   * For further study:  The number of symbols per slot will be variable
+   * depending  on whether PSFCH is present, but for the moment, PSFCH is
+   * not modeled
+   *
+   * \return The number of PSSCH symbols per slot
+   */
+  uint16_t GetNrSlPsschSymbolsPerSlot () const;
+
+  /**
    * \brief Assign a fixed random variable stream number to the random variables
    * used by this model. Returns the number of streams (possibly zero) that
    * have been assigned.
@@ -983,6 +1013,30 @@ private:
    */
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSupportedList (const SfnSf& sfn, std::list <NrSlCommResourcePool::SlotInfo> slotInfo);
   /**
+   * \brief Return all of the candidate single-slot resources (step 1 of
+   *        TS 38.214 Section 8.1.4)
+   *
+   * Method to convert the list of NrSlCommResourcePool::SlotInfo (slots)
+   * NrSlUeMacSchedSapProvider::NrSlSlotInfo (with widths of subchannels)
+   *
+   * NrSlCommResourcePool class exists in the LTE module, therefore, we can not
+   * have an object of NR SfnSf class there due to dependency issue. The use of
+   * SfnSf class makes our life easier since it already implements the necessary
+   * arithmetics of adding slots, constructing new SfnSf given the slot offset,
+   * and e.t.c. In this method, we use the slot offset value, which is the
+   * offset in number of slots from the current slot to construct the object of
+   * SfnSf class.
+   *
+   * \param sfn The current system frame, subframe, and slot number. This SfnSf
+   *        is aligned with the SfnSf of the physical layer.
+   * \param lSubch Width of candidate resource (number of subchannels)
+   * \param numSubch Number of contiguous subchannels
+   * \param slotInfo the list of LTE module compatible slot info
+   * \return The list of NR compatible slot info
+   */
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResourcesFromSlots (const SfnSf& sfn, uint16_t lSubch, uint16_t numSubch, std::list <NrSlCommResourcePool::SlotInfo> slotInfo);
+
+  /**
    * \brief Get the total number of subchannels based on the system UL bandwidth
    * \param poolId The pool id of the active pool to retrieve the sub-channel size in RBs
    * \return The total number of subchannels
@@ -1022,6 +1076,16 @@ private:
    */
   std::vector<uint8_t> GetStartSbChOfReTx (std::set <NrSlSlotAlloc>::const_iterator it, uint8_t slotNumInd);
 
+  /**
+   * \brief Check if subchannels ranges in two resources overlap
+   * \param firstStart Starting subchannel index of first resource
+   * \param firstLength Number of subchannels of first resource (must be greater than 0)
+   * \param secondStart Starting subchannel index of candidate resource
+   * \param secondLength Number of subchannels of second resource (must be greater than 0)
+   * \return True if the two resources overlap, false otherwise
+   */
+  bool OverlappedResource (uint8_t firstStart, uint8_t firstLength, uint8_t secondStart, uint8_t secondLength) const;
+
   std::map <SidelinkLcIdentifier, SlLcInfoUeMac> m_nrSlLcInfoMap; //!< Sidelink logical channel info map
   NrSlMacSapProvider* m_nrSlMacSapProvider; //!< SAP interface to receive calls from the UE RLC instance
   NrSlMacSapUser* m_nrSlMacSapUser {nullptr}; //!< SAP interface to call the methods of UE RLC instance
@@ -1045,7 +1109,6 @@ private:
   NrSlUeMacCschedSapProvider* m_nrSlUeMacCschedSapProvider {nullptr};  //!< SAP Provider
   NrSlUeMacSchedSapProvider* m_nrSlUeMacSchedSapProvider   {nullptr};  //!< SAP Provider
   Ptr<NrSlUeMacScheduler> m_nrSlUeMacScheduler {nullptr}; //!< Pointer to scheduler
-  Time m_pRsvpTx {MilliSeconds (std::numeric_limits <uint8_t>::max ())}; //!< Resource Reservation Interval for NR Sidelink in ms
   std::map<std::pair<uint32_t, uint8_t>, std::queue<NrSlUeMacSchedSapUser::NrSlGrant> > m_slGrants; //!< Grants provided by the sidelink scheduler
   double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero
   uint8_t m_slMaxTxTransNumPssch {0}; /**< Indicates the maximum transmission number
@@ -1062,13 +1125,6 @@ private:
                                     minimum number of candidate single-slot
                                     resources to be selected using sensing procedure.
                                     */
-  // TODO: These two member variables are only needed for step 6 of the
-  // sensing algorithm.  reselCounter should be read from the received
-  // SCI 1-A, and cResel should be 10 * reselCounter.  These should not
-  // be member variables but local scope variables based on SCI 1-A
-  // processed in the sensing step 6
-  uint8_t m_reselCounter {0}; //!< The resource selection counter
-  uint16_t m_cResel {0}; //!< The C_resel counter
 
   /**
    * Trace information regarding NR Sidelink PSCCH UE scheduling.

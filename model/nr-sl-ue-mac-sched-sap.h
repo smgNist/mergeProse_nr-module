@@ -38,11 +38,12 @@ namespace ns3 {
  */
 struct NrSlTransmissionParams
 {
-  NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx);
+  NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx, uint16_t cResel);
   uint8_t m_priority {0};  //!< L1 priority prio_TX
   Time m_packetDelayBudget {Seconds (0)}; //!< remaining packet delay budget
   uint16_t m_lSubch {0}; //!< L_subCH; number of subchannels to be used
   Time m_pRsvpTx {0}; //!< resource reservation interval
+  uint16_t m_cResel {0}; //!< C_resel counter
 };
 
 /**
@@ -75,10 +76,13 @@ public:
      * \param slMaxNumPerReserve Indicates the maximum number of reserved PSCCH/PSSCH resources that can be indicated by an SCI.
      * \param sfn The SfnSf
      * \param occupiedSbCh The set of occupied subchannel indexes (variable only used by UE MAC sensing code)
+     * \param slSubchannelStart The starting subchannel index
+     * \param slSubchannelLength The number of subchannels
      */
     NrSlSlotInfo (uint16_t numSlPscchRbs, uint16_t slPscchSymStart, uint16_t slPscchSymLength,
                       uint16_t slPsschSymStart, uint16_t slPsschSymLength, uint16_t slSubchannelSize,
-                      uint16_t slMaxNumPerReserve, SfnSf sfn, std::set <uint8_t> occupiedSbCh)
+                      uint16_t slMaxNumPerReserve, SfnSf sfn, std::set <uint8_t> occupiedSbCh,
+                      uint8_t slSubchannelStart, uint8_t slSubchannelLength)
     {
       this->numSlPscchRbs = numSlPscchRbs;
       this->slPscchSymStart = slPscchSymStart;
@@ -89,6 +93,8 @@ public:
       this->slMaxNumPerReserve = slMaxNumPerReserve;
       this->sfn = sfn;
       this->occupiedSbCh = occupiedSbCh;
+      this->slSubchannelStart = slSubchannelStart;
+      this->slSubchannelLength = slSubchannelLength;
     }
     //PSCCH
     uint16_t numSlPscchRbs {0}; //!< Indicates the number of PRBs for PSCCH in a resource pool where it is not greater than the number PRBs of the subchannel.
@@ -101,6 +107,8 @@ public:
     uint16_t slSubchannelSize {std::numeric_limits <uint16_t>::max ()}; //!< Indicates the subchannel size in number of RBs
     uint16_t slMaxNumPerReserve {std::numeric_limits <uint16_t>::max ()}; //!< The maximum number of reserved PSCCH/PSSCH resources that can be indicated by an SCI.
     SfnSf sfn {}; //!< The SfnSf
+    uint8_t slSubchannelStart {std::numeric_limits <uint8_t>::max ()}; //!< Starting index of subchannel for this resource
+    uint8_t slSubchannelLength {std::numeric_limits <uint8_t>::max ()}; //!< Number of continuous subchannels starting from the index
     //occupiedSbCh set is filled by the UE MAC before
     //giving the available candidate slots to the scheduler
     std::set <uint8_t> occupiedSbCh; //!< The set of occupied subchannel indexes (variable only used by UE MAC sensing code)

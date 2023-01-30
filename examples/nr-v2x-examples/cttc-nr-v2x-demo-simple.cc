@@ -480,7 +480,6 @@ main (int argc, char *argv[])
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (2));
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
-  nrHelper->SetUeMacAttribute ("ReservationPeriod", TimeValue (MilliSeconds(100)));
   nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (4));
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
 
@@ -704,6 +703,7 @@ main (int argc, char *argv[])
   SidelinkInfo slInfo;
   slInfo.m_castType = SidelinkInfo::CastType::Groupcast;
   slInfo.m_dstL2Id = dstL2Id;
+  slInfo.m_rri = MilliSeconds (100);
   if (!useIPv6)
     {
       Ipv4InterfaceContainer ueIpIface;

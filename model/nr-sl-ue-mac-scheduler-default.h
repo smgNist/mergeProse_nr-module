@@ -97,8 +97,9 @@ public:
    * \param dstL2Id The destination layer 2 id
    * \param params The list of NrSlUeMacSchedSapProvider::NrSlSlotInfo
    * \param ids available HARQ process IDs
+   * \param tbSize transport block size
    */
-  void AttemptGrantAllocation (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids);
+  void AttemptGrantAllocation (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids, uint32_t tbSize);
   /**
    * \brief Create future SPS grants based on slot allocation
    *
@@ -281,13 +282,14 @@ protected:
    * \param dstInfo The pointer to the NrSlUeMacSchedulerDstInfo of the destination
    *        for which UE MAC asked the scheduler to allocate the resourses
    * \param slotAllocList The slot allocation list to be updated by the scheduler
+   * \param tbSize transport block size in bytes
    * \return The status of the allocation, true if the destination has been
    *         allocated some resources; false otherwise.
    */
   virtual bool
   DoNrSlAllocation (const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params,
                     const std::shared_ptr<NrSlUeMacSchedulerDstInfo> &dstInfo,
-                    std::set<NrSlSlotAlloc> &slotAllocList);
+                    std::set<NrSlSlotAlloc> &slotAllocList, uint32_t tbSize);
   /**
    * \brief Method to get total number of sub-channels.
    *
@@ -348,61 +350,30 @@ private:
   NrSlLCPtr CreateLC (const NrSlUeMacCschedSapProvider::SidelinkLogicalChannelInfo& params) const;
 
   /**
-   * \ingroup scheduler
-   * \brief The SbChInfo struct
-   */
-  struct SbChInfo
-  {
-    uint8_t numSubCh {0}; //!< The minimum number of contiguous subchannels that could be used for each slot.
-    std::vector <std::vector<uint8_t>> availSbChIndPerSlot; //!< The vector containing the available subchannel index for each slot
-  };
-  /**
-   * \brief Select the slots randomly from the available slots
+   * \brief Return true if candidate resource overlaps in time (slot)
+   *        with any resource on the list.
    *
-   * \param txOpps The list of the available TX opportunities
-   * \return the set containing the indices of the randomly chosen slots in the
-   *         txOpps list
+   * \param resources List of resources to check
+   * \param candidate candidate to check
+   * \return true if candidate overlaps any slots in the list of resources
    */
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
+  bool OverlappedSlots (const std::list<NrSlUeMacSchedSapProvider::NrSlSlotInfo>& resources,
+    const NrSlUeMacSchedSapProvider::NrSlSlotInfo& candidate) const;
+
   /**
-   * \brief Randomly select the number of slots from the slots given by UE MAC
+   * \brief Randomly select the number of resources from the slots given by UE MAC
    *
-   * If K denotes the total number of available slots, and N_PSSCH_maxTx is the
+   * If K denotes the total number of available resources, and N_PSSCH_maxTx is the
    * maximum number of PSSCH configured transmissions, then:
    *
    * N_Selected = N_PSSCH_maxTx , if K >= N_PSSCH_maxTx
    * otherwise;
    * N_Selected = K
    *
-   * \param txOpps The list of the available slots
-   * \return The list of randomly selected slots
+   * \param txOpps The list of the available resources
+   * \return The list of randomly selected resources
    */
-  RandomlySelectSlots (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps);
-  /**
-   * \brief Get available subchannel information
-   *
-   * This method takes as input the randomly selected slots and computes the
-   * maximum number of contiguous subchannels that are available for all
-   * those slots. Moreover, it also returns the indexes of the available
-   * subchannels for each slot.
-   *
-   * \param txOpps The list of randomly selected slots
-   * \return A struct object of type SbChInfo
-   */
-  SbChInfo GetAvailSbChInfo (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps);
-  /**
-   * \brief Randomly select the starting subchannel index
-   *
-   * This method, for each slot randomly selects the starting subchannel
-   * index by taking into account the number of available contiguous subchannels
-   * and the number of subchannels that needs to be assigned.
-   *
-   * \param sbChInfo A struct object of type SbChInfo
-   * \param assignedSbCh The number of assigned subchannels
-   * \return A vector containing the randomly chosen starting subchannel index
-   *         for each slot.
-   */
-  std::vector <uint8_t> RandSelSbChStart (SbChInfo sbChInfo, uint8_t assignedSbCh);
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> RandomlySelectResources (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps);
 
   /**
    * \brief Get the random selection counter

@@ -249,40 +249,38 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
       // No future grants exist but buffered data exists for an LC.
       // Determine the transport block size for the amount of buffered data
       //
-      // The first step is to calculate the number of subchannels necessary
-      // to schedule the buffered data.  This will yield the L_subch
-      // parameter in the algorithm
-      //
-      // FIXME:  In current code, this calculation occurs after candidate
-      // slots have been selected, and the candidate slots are probed to
-      // find the number of symbols per slot and the subchannel size.
-      // Here, for now, we assume the number of symbols per slot is constant
-      // (12), and we should use resource pool information to determine the
-      // subchannel size in PRBs.  The number of symbols per slot will
-      // depend on whether PSFCH is present, but for the moment, PSFCH is
-      // not modeled.  We iterate on the number of subchannels until we
-      // find the required number.  It is not clear whether we should
-      // still proceed with a smaller number of subchannels (partially
-      // satisfying the buffered data) if there are not enough candidate
-      // resources for everything.
-      // 
       // The following do/while loop iterates until providing a transport
       // block size large enough to cover the buffer size plus 5 bytes for
-      // SCI-2A information.
+      // SCI-2A information.  The main goal is to determine the L_subch
+      // parameter to pass to the NrUeMac sensing algorithm.
+      // 
+      // For further study:  When L_subch > 1, but AttemptGrantAllocation()
+      // fails to allocate a grant, it is not clear whether the
+      // scheduler should retry with a smaller requested number of
+      // subchannels (partially satisfying the buffered data).
+      // Currently, the scheduler will not retry.
       uint16_t lSubch = 0;
       uint32_t tbSize = 0;
       uint8_t dstMcs = itDstInfo->second->GetDstMcs ();
-      uint16_t symbolsPerSlot = 12; // FIXME: Fetch from configuration
-      uint16_t subChannelSize = 50; // FIXME: Fetch from configuration
+      // For further study:  The number of symbols per slot will be variable
+      // depending  on whether PSFCH is present, but for the moment, PSFCH is
+      // not modeled.
+      uint16_t symbolsPerSlot = m_nrUeMac->GetNrSlPsschSymbolsPerSlot ();
+      uint16_t subChannelSize = m_nrUeMac->GetNrSlSubChSize ();
       do
         {
           lSubch++;
           tbSize = CalculateTbSize (GetNrSlAmc (), dstMcs, symbolsPerSlot, lSubch, subChannelSize);
         }
       while (tbSize < bufferSize + 5);
+      if (!isLcDynamic)
+        {
+          m_reselCounter = GetRandomReselectionCounter ();
+          m_cResel = m_reselCounter * 10;
+        }
       NrSlTransmissionParams params {lcgMap.begin ()->second->GetLcPriority (lcVector.at (0)),
         lcgMap.begin ()->second->GetLcPdb (lcVector.at (0)), lSubch,
-        lcgMap.begin ()->second->GetLcRri (lcVector.at (0))};
+        lcgMap.begin ()->second->GetLcRri (lcVector.at (0)), m_cResel};
       availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn, params);
       auto filteredReso = FilterTxOpportunities (availableReso);
       if (!filteredReso.empty ())
@@ -292,13 +290,11 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
 
           if (isLcDynamic)
             {
-              AttemptGrantAllocation (dstL2Id, filteredReso, ids);
+              AttemptGrantAllocation (dstL2Id, filteredReso, ids, tbSize);
             }
           else
             {
-              m_reselCounter = GetRandomReselectionCounter ();
-              m_cResel = m_reselCounter * 10;
-              AttemptGrantAllocation (dstL2Id, filteredReso, ids);
+              AttemptGrantAllocation (dstL2Id, filteredReso, ids, tbSize);
               m_reselCounter = 0;
               m_cResel = 0;
             }
@@ -307,6 +303,8 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
         {
           NS_LOG_DEBUG ("Do not have enough slots to allocate. Not calling the scheduler for dst " << dstL2Id);
           CheckForGrantsToPublish (sfn);
+          m_reselCounter = 0;
+          m_cResel = 0;
           return;
         }
     }
@@ -334,14 +332,14 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
           while (tbSize < bufferSize + 5);
           NrSlTransmissionParams params {lcgMap.begin ()->second->GetLcPriority (lcVector.at (0)),
             lcgMap.begin ()->second->GetLcPdb (lcVector.at (0)), lSubch,
-            lcgMap.begin ()->second->GetLcRri (lcVector.at (0))};
+            lcgMap.begin ()->second->GetLcRri (lcVector.at (0)), 0};
           availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn, params);
           auto filteredReso = FilterTxOpportunities (availableReso);
           if (!filteredReso.empty ())
             {
               //we ask the scheduler for resources only if the filtered list is not empty.
               NS_LOG_INFO ("Scheduling the destination " << dstL2Id);
-              AttemptGrantAllocation (dstL2Id, filteredReso, ids);
+              AttemptGrantAllocation (dstL2Id, filteredReso, ids, tbSize);
             }
           else
             {
@@ -417,14 +415,14 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
           while (tbSize < bufferSize + 5);
           NrSlTransmissionParams params {lcgMap.begin ()->second->GetLcPriority (lcVector.at (0)),
             lcgMap.begin ()->second->GetLcPdb (lcVector.at (0)), lSubch,
-            lcgMap.begin ()->second->GetLcRri (lcVector.at (0))};
+            lcgMap.begin ()->second->GetLcRri (lcVector.at (0)), m_cResel};
           availableReso = m_nrUeMac->GetNrSlCandidateResources (sfn, params);
           auto filteredReso = FilterTxOpportunities (availableReso);
           if (!filteredReso.empty ())
             {
               //we ask the scheduler for resources only if the filtered list is not empty.
               NS_LOG_INFO ("Scheduling the destination " << dstL2Id);
-              AttemptGrantAllocation (dstL2Id, filteredReso, ids);
+              AttemptGrantAllocation (dstL2Id, filteredReso, ids, tbSize);
               m_reselCounter = 0;
               m_cResel = 0;
             }
@@ -440,14 +438,14 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
 }
 
 void
-NrSlUeMacSchedulerDefault::AttemptGrantAllocation (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids)
+NrSlUeMacSchedulerDefault::AttemptGrantAllocation (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids, uint32_t tbSize)
 {
-  NS_LOG_FUNCTION (this << dstL2Id);
+  NS_LOG_FUNCTION (this << dstL2Id << tbSize);
 
   std::set<NrSlSlotAlloc> allocList;
 
   const auto itDstInfo = m_dstMap.find (dstL2Id);
-  bool allocated = DoNrSlAllocation (params, itDstInfo->second, allocList);
+  bool allocated = DoNrSlAllocation (params, itDstInfo->second, allocList, tbSize);
 
   if (!allocated)
     {
@@ -524,13 +522,7 @@ NrSlUeMacSchedulerDefault::CreateSpsGrantInfo (const std::set<NrSlSlotAlloc>& sl
   NS_LOG_DEBUG ("Resource reservation interval " << rri.GetMilliSeconds () << " ms");
   NS_LOG_DEBUG ("Resel Counter " << +m_reselCounter << " and cResel " << m_cResel);
 
-#ifdef NOTYETPORTED
-  // This method is not yet supported by the MAC/Scheduler API
-  // m_pRsvpTx is available as the 'rri' parameter in SidelinkLogicalChannelInfo
-  // Other values require access to the NrUeMac, or SAP API extension
-  uint16_t resPeriodSlots = m_slTxPool->GetResvPeriodInSlots (GetBwpId (), m_poolId, rri, m_nrSlUePhySapProvider->GetSlotPeriod ());
-#endif
-  uint16_t resPeriodSlots = 400; // XXX workaround for value used in examples
+  uint16_t resPeriodSlots = m_nrUeMac->GetResvPeriodInSlots (rri);
   NrSlUeMacSchedSapUser::NrSlGrantInfo grant;
 
   grant.cReselCounter = m_cResel;
@@ -842,9 +834,9 @@ NrSlUeMacSchedulerDefault::CalculateTbSize (Ptr<const NrAmc> nrAmc, uint8_t dstM
 bool
 NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& txOpps,
                                             const std::shared_ptr<NrSlUeMacSchedulerDstInfo> &dstInfo,
-                                            std::set<NrSlSlotAlloc> &slotAllocList)
+                                            std::set<NrSlSlotAlloc> &slotAllocList, uint32_t tbSize)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << tbSize);
   bool allocated = false;
   NS_ASSERT_MSG (txOpps.size () > 0, "Scheduler received an empty txOpps list from UE MAC");
   const auto & lcgMap = dstInfo->GetNrSlLCG (); //Map of unique_ptr should not copy
@@ -864,46 +856,18 @@ NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapP
   NS_ASSERT_MSG (IsNrSlMcsFixed (), "Attribute FixNrSlMcs must be true for NrSlUeMacSchedulerDefault scheduler");
 
 
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> selectedTxOpps;
-  selectedTxOpps = RandomlySelectSlots (txOpps);
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> selectedTxOpps = RandomlySelectResources (txOpps);
   NS_ASSERT_MSG (selectedTxOpps.size () > 0, "Scheduler should select at least 1 slot from txOpps");
-  uint32_t tbs = 0;
-  uint8_t assignedSbCh = 0;
-  uint16_t availableSymbols = selectedTxOpps.begin ()->slPsschSymLength;
-  uint16_t sbChSize = selectedTxOpps.begin ()->slSubchannelSize;
-  NS_LOG_DEBUG ("Total available symbols for PSSCH = " << availableSymbols);
-  //find the minimum available number of contiguous sub-channels in the
-  //selected TxOpps
-  auto sbChInfo = GetAvailSbChInfo (selectedTxOpps);
-  NS_ABORT_MSG_IF (sbChInfo.availSbChIndPerSlot.size () != selectedTxOpps.size (), "subChInfo vector does not have info for all the selected slots");
-  do
-    {
-      assignedSbCh++;
-      tbs = GetNrSlAmc ()->CalculateTbSize (dstInfo->GetDstMcs (), sbChSize * assignedSbCh * availableSymbols);
-    }
-  while (tbs < bufferSize + 5 /*(5 bytes overhead of SCI format 2A)*/ && (sbChInfo.numSubCh - assignedSbCh) > 0);
-
-  //Now, before allocating bytes to LCs we subtract 5 bytes for SCI format 2A
-  //since we already took it into account while computing the TB size.
-  tbs = tbs - 5 /*(5 bytes overhead of SCI stage 2)*/;
-
-  //NS_LOG_DEBUG ("number of allocated subchannles = " << +assignedSbCh);
-
-  std::vector <uint8_t> startSubChIndexPerSlot = RandSelSbChStart (sbChInfo, assignedSbCh);
-
   allocated = true;
-
-  auto itsbChIndexPerSlot = startSubChIndexPerSlot.cbegin ();
   auto itTxOpps = selectedTxOpps.cbegin ();
-
-  for (; itTxOpps != selectedTxOpps.cend () && itsbChIndexPerSlot != startSubChIndexPerSlot.cend (); ++itTxOpps, ++itsbChIndexPerSlot)
+  for (; itTxOpps != selectedTxOpps.cend (); ++itTxOpps)
     {
       NrSlSlotAlloc slotAlloc;
       slotAlloc.sfn = itTxOpps->sfn;
       slotAlloc.dstL2Id = dstInfo->GetDstL2Id ();
       slotAlloc.lcId = lcVector.at (0);
       slotAlloc.priority = lcgMap.begin ()->second->GetLcPriority (lcVector.at (0));
-      SlRlcPduInfo slRlcPduInfo (lcVector.at (0), tbs);
+      SlRlcPduInfo slRlcPduInfo (lcVector.at (0), tbSize);
       slotAlloc.slRlcPduInfo.push_back (slRlcPduInfo);
       slotAlloc.mcs = dstInfo->GetDstMcs ();
       //PSCCH
@@ -912,9 +876,9 @@ NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapP
       slotAlloc.slPscchSymLength = itTxOpps->slPscchSymLength;
       //PSSCH
       slotAlloc.slPsschSymStart = itTxOpps->slPsschSymStart;
-      slotAlloc.slPsschSymLength = availableSymbols;
-      slotAlloc.slPsschSubChStart = *itsbChIndexPerSlot;
-      slotAlloc.slPsschSubChLength = assignedSbCh;
+      slotAlloc.slPsschSymLength = itTxOpps->slPsschSymLength;
+      slotAlloc.slPsschSubChStart = itTxOpps->slSubchannelStart;
+      slotAlloc.slPsschSubChLength = itTxOpps->slSubchannelLength;
       slotAlloc.maxNumPerReserve = itTxOpps->slMaxNumPerReserve;
       slotAlloc.ndi = slotAllocList.empty () == true ? 1 : 0;
       slotAlloc.rv = GetRv (static_cast<uint8_t>(slotAllocList.size ()));
@@ -940,13 +904,26 @@ NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapP
       slotAllocList.emplace (slotAlloc);
     }
 
-  lcgMap.begin ()->second->AssignedData (lcVector.at (0), tbs);
+  lcgMap.begin ()->second->AssignedData (lcVector.at (0), tbSize);
   return allocated;
 }
 
+bool
+NrSlUeMacSchedulerDefault::OverlappedSlots (const std::list<NrSlUeMacSchedSapProvider::NrSlSlotInfo>& resources,
+  const NrSlUeMacSchedSapProvider::NrSlSlotInfo& candidate) const
+{
+  for (const auto & it : resources)
+    {
+      if (it.sfn == candidate.sfn)
+        {
+          return true;
+        }
+    }
+  return false;
+}
 
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
-NrSlUeMacSchedulerDefault::RandomlySelectSlots (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
+NrSlUeMacSchedulerDefault::RandomlySelectResources (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
 {
   NS_LOG_FUNCTION (this);
 
@@ -960,8 +937,11 @@ NrSlUeMacSchedulerDefault::RandomlySelectSlots (std::list <NrSlUeMacSchedSapProv
           auto txOppsIt = txOpps.begin ();
           // Walk through list until the random element is reached
           std::advance (txOppsIt, m_uniformVariable->GetInteger (0, txOpps.size () - 1));
-          //copy the randomly selected slot info into the new list
-          newTxOpps.emplace_back (*txOppsIt);
+          if (!OverlappedSlots (newTxOpps, *txOppsIt))
+            {
+              //copy the randomly selected slot info into the new list
+              newTxOpps.emplace_back (*txOppsIt);
+            }
           //erase the selected one from the list
           txOppsIt = txOpps.erase (txOppsIt);
         }
@@ -975,126 +955,5 @@ NrSlUeMacSchedulerDefault::RandomlySelectSlots (std::list <NrSlUeMacSchedSapProv
   NS_ASSERT_MSG (newTxOpps.size () <= totalTx, "Number of randomly selected slots exceeded total number of TX");
   return newTxOpps;
 }
-
-NrSlUeMacSchedulerDefault::SbChInfo
-NrSlUeMacSchedulerDefault::GetAvailSbChInfo (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
-{
-  NS_LOG_FUNCTION (this << txOpps.size ());
-  //txOpps are the randomly selected slots for 1st Tx and possible ReTx
-  SbChInfo info;
-  info.numSubCh = GetTotalSubCh ();
-  std::vector <std::vector<uint8_t>> availSbChIndPerSlot;
-  for (const auto &it:txOpps)
-    {
-      std::vector<uint8_t> indexes;
-      for (uint8_t i = 0; i < GetTotalSubCh(); i++)
-        {
-          auto it2 = it.occupiedSbCh.find (i);
-          if (it2 == it.occupiedSbCh.end ())
-            {
-              //available subchannel index(s)
-              indexes.push_back (i);
-            }
-        }
-      //it may happen that all sub-channels are occupied
-      //remember scheduler can get a slot with all the
-      //subchannels occupied because of 3 dB RSRP threshold
-      //at UE MAC
-      if (indexes.size () == 0)
-        {
-          for (uint8_t i = 0; i < GetTotalSubCh(); i++)
-            {
-              indexes.push_back (i);
-            }
-        }
-
-      NS_ABORT_MSG_IF (indexes.size () == 0, "Available subchannels are zero");
-
-      availSbChIndPerSlot.push_back (indexes);
-      uint8_t counter = 0;
-      for (uint8_t i = 0; i < indexes.size (); i++)
-        {
-          uint8_t counter2 = 0;
-          uint8_t j = i;
-          do
-            {
-              j++;
-              if (j != indexes.size ())
-                {
-                  counter2++;
-                }
-              else
-                {
-                  counter2++;
-                  break;
-                }
-            }
-          while (indexes.at (j) == indexes.at (j - 1) + 1);
-
-          counter = std::max (counter, counter2);
-        }
-
-      info.numSubCh = std::min (counter, info.numSubCh);
-    }
-
-  info.availSbChIndPerSlot = availSbChIndPerSlot;
-  for (const auto &it:info.availSbChIndPerSlot)
-    {
-      NS_ABORT_MSG_IF (it.size () == 0, "Available subchannel size is 0");
-    }
-  return info;
-}
-
-std::vector <uint8_t>
-NrSlUeMacSchedulerDefault::RandSelSbChStart (SbChInfo sbChInfo, uint8_t assignedSbCh)
-{
-  NS_LOG_FUNCTION (this << +sbChInfo.numSubCh << sbChInfo.availSbChIndPerSlot.size () << +assignedSbCh);
-
-  std::vector <uint8_t> subChInStartPerSlot;
-  uint8_t minContgSbCh = sbChInfo.numSubCh;
-
-  for (const auto &it:sbChInfo.availSbChIndPerSlot)
-    {
-      if (minContgSbCh == GetTotalSubCh() && assignedSbCh == 1)
-        {
-          //quick exit
-          uint8_t randIndex = static_cast<uint8_t> (m_uniformVariable->GetInteger (0, GetTotalSubCh() - 1));
-          subChInStartPerSlot.push_back (randIndex);
-        }
-      else
-        {
-          bool foundRandSbChStart = false;
-          auto indexes = it;
-          do
-            {
-              NS_ABORT_MSG_IF (indexes.size () == 0, "No subchannels available to choose from");
-              uint8_t randIndex = static_cast<uint8_t> (m_uniformVariable->GetInteger (0, indexes.size () - 1));
-              NS_LOG_DEBUG ("Randomly drawn index of the subchannel vector is " << +randIndex);
-              uint8_t sbChCounter = 0;
-              for (uint8_t i = randIndex; i < indexes.size (); i++)
-                {
-                  sbChCounter++;
-                  auto it = std::find (indexes.begin(), indexes.end(), indexes.at (i) + 1);
-                  if (sbChCounter == assignedSbCh)
-                    {
-                      foundRandSbChStart = true;
-                      NS_LOG_DEBUG ("Random starting sbch is " << +indexes.at (randIndex));
-                      subChInStartPerSlot.push_back (indexes.at (randIndex));
-                      break;
-                    }
-                  if (it == indexes.end())
-                    {
-                      break;
-                    }
-                }
-            }
-          while (foundRandSbChStart == false);
-        }
-    }
-
-  return subChInStartPerSlot;
-}
-
-
 
 } //namespace ns3
