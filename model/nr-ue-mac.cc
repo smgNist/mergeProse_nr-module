@@ -720,6 +720,9 @@ NrUeMac::DoSlotIndication (const SfnSf &sfn)
           RemoveOldSensingData (sfn,
             m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (), m_poolId, m_nrSlUePhySapProvider->GetSlotPeriod ()),
             m_sensingData, m_imsi);
+          RemoveOldTransmitHistory (sfn,
+            m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (), m_poolId, m_nrSlUePhySapProvider->GetSlotPeriod ()),
+            m_transmitHistory, m_imsi);
         }
       for (const auto &itDst : m_sidelinkTxDestinations)
         {
@@ -1650,6 +1653,28 @@ NrUeMac::RemoveOldSensingData (const SfnSf& sfn, uint16_t sensingWindow, std::li
 }
 
 void
+NrUeMac::RemoveOldTransmitHistory (const SfnSf& sfn, uint16_t sensingWindow, std::list<SfnSf>& history, [[maybe_unused]] uint64_t imsi) 
+{
+  NS_LOG_FUNCTION (this << sfn << sensingWindow << history.size () << imsi);
+
+  auto it = history.cbegin();
+  while (it != history.cend ())
+    {
+      if (it->Normalize () < sfn.Normalize () - sensingWindow)
+        {
+          NS_LOG_DEBUG ("IMSI " << imsi << " erasing SFN history at sfn " << sfn << " sent at " << *it);
+          it = history.erase (it);
+        }
+      else
+        {
+          //break upon reaching the edge of the sensing window
+          break;
+        }
+      ++it;
+    }
+}
+
+void
 NrUeMac::DoReceivePsschPhyPdu (Ptr<PacketBurst> pdu)
 {
   NS_LOG_FUNCTION (this << "Received Sidelink PDU from PHY");
@@ -1729,6 +1754,7 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
   NS_LOG_FUNCTION (this << " Frame " << sfn.GetFrame() << " Subframe " << +sfn.GetSubframe()
                         << " slot " << sfn.GetSlot () << " Normalized slot number " << sfn.Normalize ());
 
+  bool atLeastOneTransmissionInSlot = false;
   //check if we need to transmit PSCCH + PSSCH
   //We are starting with the transmission of data packets because if the buffer
   //at the RLC would be empty we just erase the grant of the current slot
@@ -1822,6 +1848,7 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
               NS_LOG_DEBUG ("Grant wasted at : Frame = " << currentSlot.sfn.GetFrame () << " SF = " << +currentSlot.sfn.GetSubframe () << " slot = " << currentSlot.sfn.GetSlot ());
               continue;
             }
+          atLeastOneTransmissionInSlot = true;
 
           //prepare and send SCI format 2A message
           NrSlSciF2aHeader sciF2a;
@@ -1957,6 +1984,11 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
         }
       //make this false before processing the grant for next destination
       m_nrSlMacPduTxed = false;
+    }
+  if (atLeastOneTransmissionInSlot)
+    {
+      NS_LOG_DEBUG ("IMSI " << m_imsi << " adding SFN history at sfn " << sfn);
+      m_transmitHistory.push_back (sfn);
     }
 }
 

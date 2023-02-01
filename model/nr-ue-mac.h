@@ -1054,6 +1054,15 @@ private:
    */
   void RemoveOldSensingData (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi);
   /**
+   * \brief Remove transmit history older than T0 (sl-SensingWindow)
+   * \param sfn The current system frame, subframe, and slot number. This SfnSf
+   *        is aligned with the SfnSf of the physical layer.
+   * \param sensingWindow The window length in slots (parameter sl-SensingWindow)
+   * \param history Reference to the transmit history to be updated
+   * \param imsi The IMSI of this instance 
+   */
+  void RemoveOldTransmitHistory (const SfnSf& sfn, uint16_t sensingWindow, std::list<SfnSf>& history, [[maybe_unused]] uint64_t imsi);
+  /**
    * \brief Compute the gaps in slots for the possible retransmissions
    *        indicated by an SCI 1-A.
    * \param sfn The SfnSf of the current slot which will carry the SCI 1-A.
@@ -1085,6 +1094,8 @@ private:
    * \return True if the two resources overlap, false otherwise
    */
   bool OverlappedResource (uint8_t firstStart, uint8_t firstLength, uint8_t secondStart, uint8_t secondLength) const;
+
+  std::list<SfnSf> m_transmitHistory; //!< History of slots used for transmission
 
   std::map <SidelinkLcIdentifier, SlLcInfoUeMac> m_nrSlLcInfoMap; //!< Sidelink logical channel info map
   NrSlMacSapProvider* m_nrSlMacSapProvider; //!< SAP interface to receive calls from the UE RLC instance
