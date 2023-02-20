@@ -329,12 +329,12 @@ NrSlRemoveOldSensingDataTest::DoRun ()
   // SensingData constructor takes a lot of parameters but only the SfnSf
   // is used in this test.
   std::list<SensingData> sensingData;
-  sensingData.emplace_back(std::move(SensingData (sfnT0MinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
+  sensingData.emplace_back(SensingData (sfnT0MinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0));
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 1, "sensing data should have one element");
   nrUeMac->RemoveOldSensingData (sfnNow, sensingWindow, sensingData, imsi);
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 0, "sensing data should now be empty");
-  sensingData.emplace_back(std::move(SensingData (sfnT0, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
-  sensingData.emplace_back(std::move(SensingData (sfnNowMinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
+  sensingData.emplace_back(SensingData (sfnT0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+  sensingData.emplace_back(SensingData (sfnNowMinusOne, 0, 0, 0, 0, 0, 0, 0, 0, 0));
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 2, "sensing data should have two elements");
   nrUeMac->RemoveOldSensingData (sfnNow, sensingWindow, sensingData, imsi);
   NS_TEST_ASSERT_MSG_EQ (sensingData.size (), 2, "sensing data should still have two elements");
