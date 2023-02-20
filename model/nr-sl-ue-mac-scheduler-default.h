@@ -163,7 +163,7 @@ public:
    * \param sfn Ths current SfnSf
    * \param isSidelinkSlot Whether the slot is a sidelink slot
    */
-  void DoSlotIndication (SfnSf sfn, bool isSidelinkSlot);
+  void DoSlotIndication (SfnSf sfn, bool isSidelinkSlot) override;
 
   /**
    * \brief Install the AMC for the NR Sidelink
