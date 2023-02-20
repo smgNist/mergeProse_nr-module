@@ -272,7 +272,7 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t d
           lSubch++;
           tbSize = CalculateTbSize (GetNrSlAmc (), dstMcs, symbolsPerSlot, lSubch, subChannelSize);
         }
-      while (tbSize < bufferSize + 5);
+      while (tbSize < bufferSize + 5 && lSubch < GetTotalSubCh ());
       if (!isLcDynamic)
         {
           m_reselCounter = GetRandomReselectionCounter ();
