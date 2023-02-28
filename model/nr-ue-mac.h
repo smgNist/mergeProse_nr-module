@@ -368,6 +368,43 @@ private:
    */
   void DoReportBufferStatus (LteMacSapProvider::ReportBufferStatusParameters params);
 
+  /**
+   * Execute step 5 of the sensing algorithm in TS 38.214 Section 8.1.4
+   * Candidate resources passed in may be excluded (modified) based on
+   * transmit history and list of resource reservation periods.
+   *
+   * \param sfn The current system frame, subframe, and slot number.
+   * \param transmitHistory List of transmission history
+   * \param candidateList List of candidate resources (modified by this method)
+   * \param slResourceReservePeriodList List of resource reservation periods (ms)
+   */
+  void ExcludeResourcesBasedOnHistory (const SfnSf& sfn, const std::list<SfnSf>& transmitHistory,
+    std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candidateList,
+    const std::list<uint16_t>& slResourceReservePeriodList) const;
+
+  /**
+   * Private, internal (const) method invoked by public
+   * NrUeMac::GetNrSlCandidateResources()
+   *
+   * \sa ns3::NrUeMac::GetNrSlCandidateResources
+   *
+   * \param sfn The current system frame, subframe, and slot number.
+   * \param params The input transmission parameters for the algorithm
+   * \param txPool the transmit bandwidth pool
+   * \param slotPeriod the slot period
+   * \param imsi the IMSI
+   * \param bwpId the bandwidth part ID 
+   * \param poolId the pool ID
+   * \param totalSubCh the total subchannels
+   * \param sensingData the sensing data
+   * \return The list of the transmit opportunities (slots) as per the TDD pattern
+   *         and the NR SL bitmap
+   */
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResourcesPrivate (const SfnSf& sfn,
+    const NrSlTransmissionParams& params, Ptr<const NrSlCommResourcePool> txPool, Time slotPeriod,
+    uint64_t imsi, uint8_t bwpId, uint16_t poolId, uint8_t totalSubCh,
+    const std::list<SensingData>& sensingData, const std::list<SfnSf>& transmitHistory) const;
+
   // forwarded from PHY SAP
   void DoReceivePhyPdu (Ptr<Packet> p);
   void DoReceiveControlMessage  (Ptr<NrControlMessage> msg);
@@ -991,9 +1028,13 @@ private:
   /**
    * \brief Get the list of the future transmission slots based on sensed data.
    * \param sensedData The data extracted from the sensed SCI 1-A.
+   * \param slotPeriod Slot period
+   * \param resvPeriodSlots Reservation period in slots
    * \return The list of the future transmission slots based on sensed data.
    */
-  std::list<SlotSensingData> GetFutSlotsBasedOnSens (SensingData sensedData);
+  std::list<SlotSensingData> GetFutSlotsBasedOnSens (SensingData sensedData,
+Time slotPeriod, uint16_t resvPeriodSlots) const;
+
   /**
    * \brief Method to convert the list of NrSlCommResourcePool::SlotInfo to
    *        NrSlUeMacSchedSapProvider::NrSlSlotInfo
@@ -1034,7 +1075,7 @@ private:
    * \param slotInfo the list of LTE module compatible slot info
    * \return The list of NR compatible slot info
    */
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResourcesFromSlots (const SfnSf& sfn, uint16_t lSubch, uint16_t numSubch, std::list <NrSlCommResourcePool::SlotInfo> slotInfo);
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResourcesFromSlots (const SfnSf& sfn, uint16_t lSubch, uint16_t numSubch, std::list <NrSlCommResourcePool::SlotInfo> slotInfo) const;
 
   /**
    * \brief Get the total number of subchannels based on the system UL bandwidth

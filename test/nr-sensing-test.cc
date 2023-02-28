@@ -133,6 +133,8 @@ NrSensingTestCase::DoRun ()
   ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
   ptrFactory->SetSlSubchannelSize (50); // RBs
   ptrFactory->SetSlMaxNumPerReserve (3);
+  std::list<uint16_t> resourceReservePeriodList = {0, 100}; // in ms
+  ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
   //Once parameters are configured, we can create the pool
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   LteRrcSap::SlResourcePoolNr slResourcePoolNr = pool;
