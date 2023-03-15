@@ -1519,10 +1519,10 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
       candidateResources = GetNrSlCandidateResourcesFromSlots (sfn, params.m_lSubch, totalSubCh, candidateSlots);
       NS_LOG_DEBUG ("Step 6 loop iteration checking " << candidateResources.size () << " resources against threshold " << rsrpThreshold);
       auto itCandidate = candidateResources.begin ();
+      // itCandidate is the candidate single-slot resource R_x,y
       while (itCandidate != candidateResources.end ())
         {
           bool erased = false;
-#if 0
           // calculate all proposed transmissions of current candidate resource within selection window
           std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> listFutureCands;
           uint16_t pPrimeRsvpTx = txPool->GetResvPeriodInSlots (bwpId,
@@ -1535,19 +1535,16 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
               slAlloc.sfn.Add (i * pPrimeRsvpTx);
               listFutureCands.emplace_back (slAlloc);
             }
-#endif
           // Traverse over all the possible transmissions of each sensed SCI
           for (const auto &itSensingDataProjections : sensingDataProjections)
             {
-#if 0
               // for all proposed transmissions of current candidate resource
               for (auto &itFutureCand : listFutureCands)
                 {
-#endif
-                  // Traverse the (inner) list of future projected transmissions
+                  // Traverse the list of future projected transmissions for the given sensed SCI
                   for (const auto &itSlotSensingDataProjection : itSensingDataProjections)
                     {
-                      if (itCandidate->sfn.Normalize () == itSlotSensingDataProjection.sfn.Normalize ())
+                      if (itFutureCand.sfn.Normalize () == itSlotSensingDataProjection.sfn.Normalize ())
                         {
                           if (itSlotSensingDataProjection.slRsrp > rsrpThreshold)
                             {
@@ -1562,9 +1559,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
                             }
                         }
                     }
-#if 0
                 }
-#endif
               if (erased)
                 {
                   break; // break for itSensingDataProjections
