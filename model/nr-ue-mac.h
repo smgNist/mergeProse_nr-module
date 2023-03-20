@@ -971,10 +971,9 @@ protected:
   /**
    * \brief Method to communicate NR SL grants from NR SL UE scheduler
    * \param dstL2Id destination L2 ID
-   * \param lcId Logical Channel ID
    * \param grant The sidelink grant
    */
-  void DoSchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlUeMacSchedSapUser::NrSlGrant& grant);
+  void DoSchedUeNrSlConfigInd (uint32_t dstL2Id, const NrSlUeMacSchedSapUser::NrSlGrant& grant);
 
   /**
    * \brief Method through which the NR SL scheduler gets the total number of NR
@@ -1102,6 +1101,15 @@ Time slotPeriod, uint16_t resvPeriodSlots) const;
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlCandidateResourcesFromSlots (const SfnSf& sfn, uint16_t lSubch, uint16_t numSubch, std::list <NrSlCommResourcePool::SlotInfo> slotInfo) const;
 
   /**
+   * \brief Removes resources which are already part of an existing published grant.
+   *
+   * \param txOppr The list of available slots
+   * \return The list of resources which are not used by any existing published grant.
+   */
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> FilterNrSlCandidateResources (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOppr);
+
+
+  /**
    * \brief Get the total number of subchannels based on the system UL bandwidth
    * \param poolId The pool id of the active pool to retrieve the sub-channel size in RBs
    * \return The total number of subchannels
@@ -1185,7 +1193,8 @@ Time slotPeriod, uint16_t resvPeriodSlots) const;
   NrSlUeMacCschedSapProvider* m_nrSlUeMacCschedSapProvider {nullptr};  //!< SAP Provider
   NrSlUeMacSchedSapProvider* m_nrSlUeMacSchedSapProvider   {nullptr};  //!< SAP Provider
   Ptr<NrSlUeMacScheduler> m_nrSlUeMacScheduler {nullptr}; //!< Pointer to scheduler
-  std::map<std::pair<uint32_t, uint8_t>, std::queue<NrSlUeMacSchedSapUser::NrSlGrant> > m_slGrants; //!< Grants provided by the sidelink scheduler
+  std::map<uint32_t, std::deque<NrSlUeMacSchedSapUser::NrSlGrant> > m_slGrants; //!< Grants provided by the sidelink scheduler
+
   double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero
   uint8_t m_slMaxTxTransNumPssch {0}; /**< Indicates the maximum transmission number
                                      (including new transmission and
