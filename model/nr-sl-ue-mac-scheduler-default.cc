@@ -54,6 +54,11 @@ NrSlUeMacSchedulerDefault::GetTypeId (void)
                    PointerValue (),
                    MakePointerAccessor (&NrSlUeMacSchedulerDefault::m_nrSlAmc),
                    MakePointerChecker <NrAmc> ())
+    .AddAttribute ("PriorityToSps",
+                   "Flag to give scheduling priority to logical channels that are configured with SPS in case of priority tie",
+                   BooleanValue (true),
+                   MakeBooleanAccessor (&NrSlUeMacSchedulerDefault::m_prioToSps),
+                   MakeBooleanChecker ())
   ;
   return tid;
 }
@@ -454,7 +459,6 @@ NrSlUeMacSchedulerDefault::LogicalChannelPrioritization (const SfnSf& sfn,
     }
   m_reselCounter = 0;
   m_cResel = 0;
-  bool m_prioToSps = true;
 
   //At this point all LCs in dstsAndLcsToSched have data to transmit, so we
   //focus on checking the other conditions for the selection and allocation.

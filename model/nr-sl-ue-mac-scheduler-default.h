@@ -465,6 +465,7 @@ private:
   Time m_pRsvpTx {MilliSeconds (100)}; //!< Resource Reservation Interval for NR Sidelink in ms
   uint8_t m_t1 {2}; //!< The offset in number of slots between the slot in which the resource selection is triggered and the start of the selection window
 
+  bool m_prioToSps {true}; //!< Flag to give scheduling priority to logical channels that are configured with SPS in case of priority tie
 };
 
 } //namespace ns3
