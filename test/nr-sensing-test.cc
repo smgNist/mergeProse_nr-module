@@ -283,10 +283,7 @@ NrSensingTestCase::DoRun ()
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = nrUeMac->GetNrSlCandidateResources (currentSfn, params);
   for (const NrSlUeMacSchedSapProvider::NrSlSlotInfo& slot : availableReso)
     {
-      for (const uint8_t& it : slot.occupiedSbCh)
-        {
-          NS_TEST_ASSERT_MSG_NE (it, 0, "Slot 0 should not be marked occupied");
-        }
+      NS_TEST_ASSERT_MSG_NE (slot.slSubchannelStart, 0, "Slot 0 should not be marked occupied");
     }
 }
 

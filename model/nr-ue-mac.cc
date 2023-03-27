@@ -1280,13 +1280,12 @@ NrUeMac::GetNrSlCandidateResourcesFromSlots (const SfnSf& sfn, uint16_t lSubCh, 
     {
       for (uint16_t i = 0; i + lSubCh <= totalSubCh; i++)
         {
-          std::set <uint8_t> emptySet;
           NrSlUeMacSchedSapProvider::NrSlSlotInfo info (it.numSlPscchRbs, it.slPscchSymStart,
                                                         it.slPscchSymLength, it.slPsschSymStart,
                                                         it.slPsschSymLength, it.slSubchannelSize,
                                                         it.slMaxNumPerReserve,
                                                         sfn.GetFutureSfnSf (it.slotOffset),
-                                                        emptySet, i, lSubCh);
+                                                        i, lSubCh);
           nrSupportedList.emplace_back (info);
         }
     }
@@ -1395,9 +1394,8 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
 
   // In this code, the list of candidateSlots is taken from the resource pool,
   // each SlotInfo doesn't have a list of subchannel (indices).
-  // The NrUeMac copies each resource to the candidateResources list, with
-  // the only difference being that there is a std::set occupiedSbCh parameter
-  // in the latter structure, and this NrSlUeMacSchedSapProvider::NrSlSlotInfo
+  // The NrUeMac copies each resource to the candidateResources list,
+  // the only difference being that this NrSlUeMacSchedSapProvider::NrSlSlotInfo
   // exists at the mac/scheduler API.  Consolidating these two nearly
   // identical structures could be a topic of future work.
 
@@ -1690,13 +1688,12 @@ NrUeMac::GetNrSupportedList (const SfnSf& sfn, std::list <NrSlCommResourcePool::
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> nrSupportedList;
   for (const auto& it:slotInfo)
     {
-      std::set <uint8_t> emptySet;
       NrSlUeMacSchedSapProvider::NrSlSlotInfo info (it.numSlPscchRbs, it.slPscchSymStart,
                                                     it.slPscchSymLength, it.slPsschSymStart,
                                                     it.slPsschSymLength, it.slSubchannelSize,
                                                     it.slMaxNumPerReserve,
                                                     sfn.GetFutureSfnSf (it.slotOffset),
-                                                    emptySet, 0, 0);
+                                                    0, 0);
       nrSupportedList.emplace_back (info);
     }
 

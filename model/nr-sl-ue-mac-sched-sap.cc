@@ -66,18 +66,6 @@ std::ostream &operator<< (std::ostream &os,
      << " MaxNumPerReserve: " << p.slMaxNumPerReserve
      << " SubchannelStart: " << +p.slSubchannelStart
      << " SubchannelLength: " << +p.slSubchannelLength;
-  if (p.occupiedSbCh.size () > 0)
-    {
-      os << " OccupiedSbCh:";
-      for (auto i : p.occupiedSbCh)
-        { 
-          os << " " << static_cast<uint16_t> (i);
-        }
-    }
-  else
-    {
-      os << " OccupiedSbCh: None";
-    }
   return os;
 }
 
