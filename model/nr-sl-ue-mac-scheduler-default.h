@@ -104,12 +104,12 @@ public:
    * \param lcId The logical channel ID
    * \return True if the LC passes the check, false otherwise
    */
-  bool TxResourceReSelectionCheck (uint32_t dstL2Id, uint8_t lcId);
+  bool TxResourceReselectionCheck (uint32_t dstL2Id, uint8_t lcId);
   /**
    * \brief Select the destinations and logical channels that need scheduling
    *
    * The function fills the dstsAndLcsToSched map with the destinations and logical channels that pass the
-   * transmission resource (re-)selection check in function TxResourceReSelectionCheck
+   * transmission resource (re-)selection check in function TxResourceReselectionCheck
    *
    * \param dstsAndLcsToSched The map of destinations and logical channels IDs to be updated
    */

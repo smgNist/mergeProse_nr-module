@@ -245,7 +245,7 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, const std:
       NS_LOG_INFO ("There are " << dstsAndLcsToSched.size () << " destinations needing scheduling");
 
       //2. Allocate as much of the destinations and logical channels as possible,
-      //   following LCP procedure
+      //   following the Logical Channel Prioritization (LCP) procedure
       while (dstsAndLcsToSched.size () > 0)
         {
           AllocationInfo allocationInfo;
@@ -326,7 +326,7 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, const std:
 }
 
 bool
-NrSlUeMacSchedulerDefault::TxResourceReSelectionCheck (uint32_t dstL2Id, uint8_t lcId)
+NrSlUeMacSchedulerDefault::TxResourceReselectionCheck (uint32_t dstL2Id, uint8_t lcId)
 {
   NS_LOG_FUNCTION (this << dstL2Id << +lcId);
   const auto itDstInfo = m_dstMap.find (dstL2Id);
@@ -337,7 +337,7 @@ NrSlUeMacSchedulerDefault::TxResourceReSelectionCheck (uint32_t dstL2Id, uint8_t
   NS_LOG_INFO ("LcId " << +lcId << " buffer size " << lcBufferSize);
   if (lcBufferSize == 0)
     {
-      NS_LOG_INFO ("Didn't pass the check");
+      NS_LOG_INFO ("Didn't pass, Empty buffer");
       return false;
     }
 
@@ -691,12 +691,12 @@ NrSlUeMacSchedulerDefault::LogicalChannelPrioritization (const SfnSf& sfn,
       filteredReso = FilterTxOpportunities (m_nrUeMac->GetNrSlCandidateResources (sfn, params));
       if (filteredReso.size () == 0)
         {
-          NS_LOG_DEBUG ("Not possible");
+          NS_LOG_DEBUG ("Resources not found");
           break;
         }
       else
         {
-          NS_LOG_DEBUG ("Success!");
+          NS_LOG_DEBUG ("Resources found");
           candResoTbSize = tbSize;
           candResources = filteredReso;
         }
@@ -767,7 +767,7 @@ NrSlUeMacSchedulerDefault::GetDstsAndLcsNeedingScheduling (std::map<uint32_t, st
       std::vector<uint8_t> passedLcsVector;
       for (auto & itLcId : lcVector)
         {
-          if (TxResourceReSelectionCheck (itDstInfo.first, itLcId))
+          if (TxResourceReselectionCheck (itDstInfo.first, itLcId))
             {
               passedLcsVector.emplace_back (itLcId);
             }

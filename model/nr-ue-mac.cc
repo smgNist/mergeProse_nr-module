@@ -1453,7 +1453,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
   // should be passed from nr-sl-comm-resource-pool to begin with.
 
   std::list <NrSlCommResourcePool::SlotInfo> candidateSlots; // candidate single slots
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> unfliteredCandidateResources;
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> unfilteredCandidateResources;
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> candidateResources;// S_A as per TS 38.214
 
   uint64_t absSlotIndex = sfn.Normalize ();
