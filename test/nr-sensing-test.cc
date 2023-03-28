@@ -23,6 +23,9 @@
 #include <ns3/test.h>
 #include <ns3/log.h>
 #include <ns3/boolean.h>
+#include <ns3/uinteger.h>
+#include <ns3/integer.h>
+#include <ns3/double.h>
 #include <ns3/nr-ue-mac.h>
 #include <ns3/nr-ue-phy.h>
 #include <ns3/nr-sl-comm-resource-pool.h>
@@ -33,6 +36,129 @@
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("NrSensingTest");
+
+// Helper function for configuring a resource pool 
+// similarly to what is found in cttc-nr-v2x-demo-simple.cc
+Ptr<NrSlCommResourcePool>
+CreateNrSlCommResourcePool(uint16_t numSubchannels)
+{
+  Ptr<NrSlCommResourcePool> slPool = CreateObject<NrSlCommResourcePool> ();
+  Ptr<NrSlCommPreconfigResourcePoolFactory> ptrFactory = Create<NrSlCommPreconfigResourcePoolFactory> ();
+  std::vector <std::bitset<1> > slBitmap = {1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1};
+  ptrFactory->SetSlTimeResources (slBitmap);
+  ptrFactory->SetSlSensingWindow (100); // T0 in ms
+  ptrFactory->SetSlSelectionWindow (5);
+  ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
+  ptrFactory->SetSlSubchannelSize (50); // RBs
+  ptrFactory->SetSlMaxNumPerReserve (3);
+  std::list<uint16_t> resourceReservePeriodList = {0, 100}; // in ms
+  ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
+  //Once parameters are configured, we can create the pool
+  LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
+  LteRrcSap::SlResourcePoolNr slResourcePoolNr = pool;
+
+  std::array <LteRrcSap::SlFreqConfigCommonNr, 1> slPreconfigFreqInfoList;
+  LteRrcSap::SlFreqConfigCommonNr slFreConfigCommonNr;
+  LteRrcSap::SlBwpConfigCommonNr slBwpConfigCommonNr;
+  LteRrcSap::SlBwpGeneric slBwpGeneric;
+  LteRrcSap::SlResourcePoolConfigNr slresoPoolConfigNr;
+  slresoPoolConfigNr.haveSlResourcePoolConfigNr = true;
+  //Pool id, ranges from 0 to 15
+  uint16_t poolId = 0;
+  LteRrcSap::SlResourcePoolIdNr slResourcePoolIdNr;
+  slResourcePoolIdNr.id = poolId;
+  slresoPoolConfigNr.slResourcePoolId = slResourcePoolIdNr;
+  slresoPoolConfigNr.slResourcePool = slResourcePoolNr;
+
+  //Configure the SlBwpPoolConfigCommonNr IE, which hold an array of pools
+  LteRrcSap::SlBwpPoolConfigCommonNr slBwpPoolConfigCommonNr;
+  //Array for pools, we insert the pool in the array as per its poolId
+  slBwpPoolConfigCommonNr.slTxPoolSelectedNormal [slResourcePoolIdNr.id] = slresoPoolConfigNr;
+
+  //Configure the BWP IE
+  LteRrcSap::Bwp bwp;
+  bwp.numerology = 2;
+  bwp.symbolsPerSlots = 14;
+  bwp.rbPerRbg = 1;
+  bwp.bandwidth = 400 * numSubchannels; // 40 MHz = 400 (100 KHz blocks)
+  // one RB at numerology 2 is 720 Khz, so 40 MHz is roughly 55 RBs
+
+  slBwpGeneric.bwp = bwp;
+  slBwpGeneric.slLengthSymbols = LteRrcSap::GetSlLengthSymbolsEnum (14);
+  slBwpGeneric.slStartSymbol = LteRrcSap::GetSlStartSymbolEnum (0);
+
+  slBwpConfigCommonNr.haveSlBwpGeneric = true;
+  slBwpConfigCommonNr.slBwpGeneric = slBwpGeneric;
+  slBwpConfigCommonNr.haveSlBwpPoolConfigCommonNr = true;
+  slBwpConfigCommonNr.slBwpPoolConfigCommonNr = slBwpPoolConfigCommonNr;
+
+  std::set<uint8_t> bwpIdContainer;
+  bwpIdContainer.insert (0);
+  for (const auto &it:bwpIdContainer)
+    {
+      slFreConfigCommonNr.slBwpList [it] = slBwpConfigCommonNr;
+    }
+
+  slPreconfigFreqInfoList [0] = slFreConfigCommonNr;
+  slPool->SetNrSlPreConfigFreqInfoList (slPreconfigFreqInfoList);
+
+  // From LteUeRrc::PopulateNrSlPools ()
+  std::array <LteRrcSap::SlBwpConfigCommonNr, 4> slBwpList;
+  slBwpList = slPreconfigFreqInfoList [0].slBwpList;
+
+  std::unordered_map<uint8_t, std::unordered_map <uint16_t, std::vector <std::bitset<1>>> > mapPerBwp;
+  std::unordered_map <uint16_t, std::vector <std::bitset<1>>> mapPerPool;
+  std::set <uint8_t> bwpIds;
+  bwpIds.insert (0);
+
+  std::vector<NrSlUeRrc::LteNrTddSlotType> tddPattern = { NrSlUeRrc::DL, NrSlUeRrc::DL, NrSlUeRrc::DL,
+    NrSlUeRrc::F, NrSlUeRrc::UL, NrSlUeRrc::UL, NrSlUeRrc::UL, NrSlUeRrc::UL,
+    NrSlUeRrc::UL, NrSlUeRrc::UL};
+
+  for (uint8_t index = 0; index < slBwpList.size (); ++index)
+    {
+      //index of slBwpList is used as BWP id
+      //send SL pool to only that BWP for which SlBwpGeneric and SlBwpPoolConfigCommonNr are configured.
+      if (slBwpList [index].haveSlBwpGeneric && slBwpList [index].haveSlBwpPoolConfigCommonNr)
+        {
+          auto it = bwpIds.find (index);
+          NS_ASSERT_MSG (it != bwpIds.end (), "UE is not prepared to use BWP id " << +index << " for SL");
+
+          std::array <LteRrcSap::SlResourcePoolConfigNr, 8> txPoolList;
+          txPoolList = slBwpList [index].slBwpPoolConfigCommonNr.slTxPoolSelectedNormal;
+          for (const auto& it:txPoolList) // fill the map per pool
+            {
+              if (it.haveSlResourcePoolConfigNr) // if this true, it means pools are set
+                {
+                  //check if subchannel size in RBs is less or equal to the total
+                  //available BW is RBs
+                  uint16_t sbChSizeInRbs = LteRrcSap::GetNrSlSubChSizeValue (it.slResourcePool.slSubchannelSize);
+                  uint16_t numPscchRbs = LteRrcSap::GetSlFResoPscchValue (it.slResourcePool.slPscchConfig.slFreqResourcePscch);
+                  NS_ASSERT_MSG (numPscchRbs <= sbChSizeInRbs, "Incorrect number of PSCCH RBs : "
+                                 << numPscchRbs << " . Must be less or equal to the SL subchannel size of " << sbChSizeInRbs << " RBs");
+                  std::vector <std::bitset<1>> physicalPool = NrSlUeRrc::GetPhysicalSlPool (it.slResourcePool.slTimeResource, tddPattern);
+                  mapPerPool.emplace (std::make_pair (it.slResourcePoolId.id, physicalPool));
+                }
+            }
+
+          NS_ASSERT_MSG (mapPerPool.size () > 0, "No SL pool set for BWP " << +index);
+          mapPerBwp.emplace (std::make_pair (index, mapPerPool));
+        }
+
+      if (mapPerBwp.size () > 0) // we found SL BWP
+        {
+          slPool = CreateObject <NrSlCommResourcePool> ();
+          //slPool->SetNrSlPreConfigFreqInfoList (preConfig.slPreconfigFreqInfoList);
+          slPool->SetNrSlPreConfigFreqInfoList (slPreconfigFreqInfoList);
+          slPool->SetNrSlPhysicalPoolMap (mapPerBwp);
+          slPool->SetNrSlSchedulingType (NrSlCommResourcePool::UE_SELECTED);
+          slPool->SetTddPattern (tddPattern);
+          mapPerPool.clear ();
+          mapPerBwp.clear ();
+        }
+    }
+  return slPool;
+}
 
 /*
  * \brief Multi-channel sensing testcase
@@ -122,139 +248,14 @@ NrSensingTestCase::DoRun ()
 {
   NS_LOG_FUNCTION (this);
 
-  // The below configuration is necessary to create the resource pool
-  // similarly to what is found in cttc-nr-v2x-demo-simple.cc
-  Ptr<NrSlCommResourcePool> slPool = CreateObject<NrSlCommResourcePool> ();
-  Ptr<NrSlCommPreconfigResourcePoolFactory> ptrFactory = Create<NrSlCommPreconfigResourcePoolFactory> ();
-  std::vector <std::bitset<1> > slBitmap = {1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1};
-  ptrFactory->SetSlTimeResources (slBitmap);
-  ptrFactory->SetSlSensingWindow (100); // T0 in ms
-  ptrFactory->SetSlSelectionWindow (5);
-  ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
-  ptrFactory->SetSlSubchannelSize (50); // RBs
-  ptrFactory->SetSlMaxNumPerReserve (3);
-  std::list<uint16_t> resourceReservePeriodList = {0, 100}; // in ms
-  ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
-  //Once parameters are configured, we can create the pool
-  LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
-  LteRrcSap::SlResourcePoolNr slResourcePoolNr = pool;
-
-  std::array <LteRrcSap::SlFreqConfigCommonNr, 1> slPreconfigFreqInfoList;
-  LteRrcSap::SlFreqConfigCommonNr slFreConfigCommonNr;
-  LteRrcSap::SlBwpConfigCommonNr slBwpConfigCommonNr;
-  LteRrcSap::SlBwpGeneric slBwpGeneric;
-  LteRrcSap::SlResourcePoolConfigNr slresoPoolConfigNr;
-  slresoPoolConfigNr.haveSlResourcePoolConfigNr = true;
-  //Pool id, ranges from 0 to 15
-  uint16_t poolId = 0;
-  LteRrcSap::SlResourcePoolIdNr slResourcePoolIdNr;
-  slResourcePoolIdNr.id = poolId;
-  slresoPoolConfigNr.slResourcePoolId = slResourcePoolIdNr;
-  slresoPoolConfigNr.slResourcePool = slResourcePoolNr;
-
-  //Configure the SlBwpPoolConfigCommonNr IE, which hold an array of pools
-  LteRrcSap::SlBwpPoolConfigCommonNr slBwpPoolConfigCommonNr;
-  //Array for pools, we insert the pool in the array as per its poolId
-  slBwpPoolConfigCommonNr.slTxPoolSelectedNormal [slResourcePoolIdNr.id] = slresoPoolConfigNr;
-
-  //Configure the BWP IE
-  LteRrcSap::Bwp bwp;
-  bwp.numerology = 2;
-  bwp.symbolsPerSlots = 14;
-  bwp.rbPerRbg = 1;
-  bwp.bandwidth = 400; // MHz, but this setting is unused in this test code
-
-  slBwpGeneric.bwp = bwp;
-  slBwpGeneric.slLengthSymbols = LteRrcSap::GetSlLengthSymbolsEnum (14);
-  slBwpGeneric.slStartSymbol = LteRrcSap::GetSlStartSymbolEnum (0);
-
-  slBwpConfigCommonNr.haveSlBwpGeneric = true;
-  slBwpConfigCommonNr.slBwpGeneric = slBwpGeneric;
-  slBwpConfigCommonNr.haveSlBwpPoolConfigCommonNr = true;
-  slBwpConfigCommonNr.slBwpPoolConfigCommonNr = slBwpPoolConfigCommonNr;
-
-  std::set<uint8_t> bwpIdContainer;
-  bwpIdContainer.insert (0);
-  for (const auto &it:bwpIdContainer)
-    {
-      slFreConfigCommonNr.slBwpList [it] = slBwpConfigCommonNr;
-    }
-
-  slPreconfigFreqInfoList [0] = slFreConfigCommonNr;
-  slPool->SetNrSlPreConfigFreqInfoList (slPreconfigFreqInfoList);
-
-  // From LteUeRrc::PopulateNrSlPools ()
-  std::array <LteRrcSap::SlBwpConfigCommonNr, 4> slBwpList;
-  slBwpList = slPreconfigFreqInfoList [0].slBwpList;
-
-  std::unordered_map<uint8_t, std::unordered_map <uint16_t, std::vector <std::bitset<1>>> > mapPerBwp;
-  std::unordered_map <uint16_t, std::vector <std::bitset<1>>> mapPerPool;
-  std::set <uint8_t> bwpIds;
-  bwpIds.insert (0);
-
-  std::vector<NrSlUeRrc::LteNrTddSlotType> tddPattern = { NrSlUeRrc::DL, NrSlUeRrc::DL, NrSlUeRrc::DL,
-    NrSlUeRrc::F, NrSlUeRrc::UL, NrSlUeRrc::UL, NrSlUeRrc::UL, NrSlUeRrc::UL,
-    NrSlUeRrc::UL, NrSlUeRrc::UL};
-
-  for (uint8_t index = 0; index < slBwpList.size (); ++index)
-    {
-      //index of slBwpList is used as BWP id
-      //send SL pool to only that BWP for which SlBwpGeneric and SlBwpPoolConfigCommonNr are configured.
-      if (slBwpList [index].haveSlBwpGeneric && slBwpList [index].haveSlBwpPoolConfigCommonNr)
-        {
-          auto it = bwpIds.find (index);
-          NS_ASSERT_MSG (it != bwpIds.end (), "UE is not prepared to use BWP id " << +index << " for SL");
-
-          std::array <LteRrcSap::SlResourcePoolConfigNr, 8> txPoolList;
-          txPoolList = slBwpList [index].slBwpPoolConfigCommonNr.slTxPoolSelectedNormal;
-          for (const auto& it:txPoolList) // fill the map per pool
-            {
-              if (it.haveSlResourcePoolConfigNr) // if this true, it means pools are set
-                {
-                  //check if subchannel size in RBs is less or equal to the total
-                  //available BW is RBs
-                  uint16_t sbChSizeInRbs = LteRrcSap::GetNrSlSubChSizeValue (it.slResourcePool.slSubchannelSize);
-                  uint16_t numPscchRbs = LteRrcSap::GetSlFResoPscchValue (it.slResourcePool.slPscchConfig.slFreqResourcePscch);
-                  NS_ASSERT_MSG (numPscchRbs <= sbChSizeInRbs, "Incorrect number of PSCCH RBs : "
-                                 << numPscchRbs << " . Must be less or equal to the SL subchannel size of " << sbChSizeInRbs << " RBs");
-                  std::vector <std::bitset<1>> physicalPool = NrSlUeRrc::GetPhysicalSlPool (it.slResourcePool.slTimeResource, tddPattern);
-                  mapPerPool.emplace (std::make_pair (it.slResourcePoolId.id, physicalPool));
-                }
-            }
-
-          NS_ASSERT_MSG (mapPerPool.size () > 0, "No SL pool set for BWP " << +index);
-          mapPerBwp.emplace (std::make_pair (index, mapPerPool));
-        }
-
-      if (mapPerBwp.size () > 0) // we found SL BWP
-        {
-          slPool = CreateObject <NrSlCommResourcePool> ();
-          //slPool->SetNrSlPreConfigFreqInfoList (preConfig.slPreconfigFreqInfoList);
-          slPool->SetNrSlPreConfigFreqInfoList (slPreconfigFreqInfoList);
-          slPool->SetNrSlPhysicalPoolMap (mapPerBwp);
-          slPool->SetNrSlSchedulingType (NrSlCommResourcePool::UE_SELECTED);
-          slPool->SetTddPattern (tddPattern);
-          mapPerPool.clear ();
-          mapPerBwp.clear ();
-        }
-    }
-
-  // The below configuration is necessary to create and configure the
-  // NrUePhy and NrUeMac instances just enough to execute the sensing algorithm
-  Ptr<NrUePhy> nrUePhy = CreateObject<NrUePhy> ();
   Ptr<NrUeMac> nrUeMac = CreateObject<NrUeMac> ();
+  // Set attributes used by the sensing code
   nrUeMac->SetAttribute ("EnableSensing", BooleanValue (true));
+  nrUeMac->SetAttribute ("T1", UintegerValue (2));
+  nrUeMac->SetAttribute ("T2", UintegerValue (33));
+  nrUeMac->SetAttribute ("ResourcePercentage", UintegerValue (20));
+  nrUeMac->SetAttribute ("SlThresPsschRsrp", IntegerValue (-128));
 
-  nrUePhy->SetPhySapUser (nrUeMac->GetPhySapUser ());
-  nrUePhy->SetNrSlUePhySapUser (nrUeMac->GetNrSlUePhySapUser ());
-  nrUeMac->SetPhySapProvider (nrUePhy->GetPhySapProvider ());
-  nrUeMac->SetNrSlUePhySapProvider (nrUePhy->GetNrSlUePhySapProvider ());
-  nrUePhy->SetBwpId (0);
-  nrUePhy->DoSetCellId (0);
-  nrUePhy->SetSymbolsPerSlot (14);
-  nrUePhy->SetNumerology (2);
-  // At this numerology, 80 MHz will result in two subchannels of 50 RB each
-  nrUePhy->PreConfigSlBandwidth (800); // kHz * 100 = 80 MHz
   // Time 2.11 seconds similar to cttc-nr-v2x-demo-simple first transmission
   SfnSf currentSfn (211, 0, 0, 2);
   // T_0 is 400 slots behind = 100 ms behind
@@ -267,15 +268,21 @@ NrSensingTestCase::DoRun ()
   uint8_t sbChStart = 0;
   uint8_t priority = 7; // Priority is unused
   double rsrpDbm = -126; // 2 dB greater than the initial -128 dBm threshold
+  std::list<SensingData> sensingDataList;
   for (uint32_t i = 0; i < 400; i++)
     {
       SfnSf slot = t0Sfn;
       slot.Add (i);
       SensingData sensingData (slot, rsvp, sbChLength, sbChStart, priority,
         rsrpDbm, 255, 255, 255, 255);
-      nrUeMac->DoReceiveSensingData (sensingData);
+      sensingDataList.push_back (sensingData);
     }
-  nrUeMac->m_slTxPool = slPool;
+  std::list<SfnSf> transmitHistory; // empty
+  Time slotPeriod = MicroSeconds (250); // numerology 2
+  uint64_t imsi = 0; // parameter only used for logging
+  uint8_t bwpId = 0;
+  uint16_t poolId = 0;
+  uint8_t totalSubCh = 2;  // Two subchannels in the BWP
 
   // Call the sensing algorithm and inspect the list of slots that result.
   // This list would normally be passed to a scheduler as a next step.
@@ -289,7 +296,10 @@ NrSensingTestCase::DoRun ()
   Time pRsvpTx = MilliSeconds (100);
   uint16_t cResel = 5;
   NrSlTransmissionParams params {priority, packetDelayBudget, lSubch, pRsvpTx, cResel};
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = nrUeMac->GetNrSlCandidateResources (currentSfn, params);
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso;
+  availableReso = nrUeMac->GetNrSlCandidateResourcesPrivate (currentSfn, params, CreateNrSlCommResourcePool (totalSubCh), 
+    slotPeriod, imsi, bwpId, poolId, totalSubCh, sensingDataList, transmitHistory);
+
   for (const NrSlUeMacSchedSapProvider::NrSlSlotInfo& slot : availableReso)
     {
       NS_TEST_ASSERT_MSG_EQ (availableReso.size (), 15, "Expecting 15 resources");
@@ -298,7 +308,8 @@ NrSensingTestCase::DoRun ()
   // Resetting the subchannel width to 2 should cause 15 resources of two subchannel width
   lSubch = 2;
   NrSlTransmissionParams params2 {priority, packetDelayBudget, lSubch, pRsvpTx, cResel};
-  availableReso = nrUeMac->GetNrSlCandidateResources (currentSfn, params2);
+  availableReso = nrUeMac->GetNrSlCandidateResourcesPrivate (currentSfn, params2, CreateNrSlCommResourcePool (totalSubCh), 
+    slotPeriod, imsi, bwpId, poolId, totalSubCh, sensingDataList, transmitHistory);
   for (const NrSlUeMacSchedSapProvider::NrSlSlotInfo& slot : availableReso)
     {
       NS_TEST_ASSERT_MSG_EQ (availableReso.size (), 15, "Expecting 15 resources");
