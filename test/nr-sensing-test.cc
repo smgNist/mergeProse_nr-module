@@ -16,10 +16,32 @@
  *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <string>
+#include <array>
+#include <bitset>
+#include <unordered_map>
+#include <ns3/test.h>
+#include <ns3/log.h>
+#include <ns3/boolean.h>
+#include <ns3/nr-ue-mac.h>
+#include <ns3/nr-ue-phy.h>
+#include <ns3/nr-sl-comm-resource-pool.h>
+#include <ns3/nr-sl-comm-preconfig-resource-pool-factory.h>
+#include <ns3/lte-rrc-sap.h>
+#include <ns3/nr-sl-ue-rrc.h>
+
+using namespace ns3;
+
+NS_LOG_COMPONENT_DEFINE ("NrSensingTest");
+
 /*
- * This testcase demonstrates a limitation of the current sensing
- * implementation.  Sensing is defined in Sec. 8.1.4 of 3GPP TS 38.214.
- * The implementation in ns-3 does not follow the seven-step algorithm
+ * \brief Multi-channel sensing testcase
+ *
+ * This testcase demonstrates a limitation of the previous sensing
+ * implementation, but now fixed in the current code.
+ *
+ * Sensing is defined in Sec. 8.1.4 of 3GPP TS 38.214.
+ * The implementation in ns-3 did not follow the seven-step algorithm
  * exactly as defined in 38.214.  In particular, there are two differences.
  * The first is that candidate resources are not fully considered in both
  * time and frequency when the exclusions are performed in step 6c.
@@ -81,27 +103,6 @@
  * weaker and stronger interferers can be lost in the current code if the
  * algorithm does not iterate as specified.
  */
-#include <string>
-#include <array>
-#include <bitset>
-#include <unordered_map>
-#include <ns3/test.h>
-#include <ns3/log.h>
-#include <ns3/boolean.h>
-#include <ns3/nr-ue-mac.h>
-#include <ns3/nr-ue-phy.h>
-#include <ns3/nr-sl-comm-resource-pool.h>
-#include <ns3/nr-sl-comm-preconfig-resource-pool-factory.h>
-#include <ns3/lte-rrc-sap.h>
-#include <ns3/nr-sl-ue-rrc.h>
-
-using namespace ns3;
-
-NS_LOG_COMPONENT_DEFINE ("NrSensingTest");
-
-/**
- * \brief Sensing testcase
- */
 class NrSensingTestCase : public TestCase
 {
 public:
@@ -114,7 +115,6 @@ public:
 
 private:
   virtual void DoRun (void) override;
-
 };
 
 void
@@ -243,11 +243,12 @@ NrSensingTestCase::DoRun ()
   // NrUePhy and NrUeMac instances just enough to execute the sensing algorithm
   Ptr<NrUePhy> nrUePhy = CreateObject<NrUePhy> ();
   Ptr<NrUeMac> nrUeMac = CreateObject<NrUeMac> ();
+  nrUeMac->SetAttribute ("EnableSensing", BooleanValue (true));
+
   nrUePhy->SetPhySapUser (nrUeMac->GetPhySapUser ());
   nrUePhy->SetNrSlUePhySapUser (nrUeMac->GetNrSlUePhySapUser ());
   nrUeMac->SetPhySapProvider (nrUePhy->GetPhySapProvider ());
   nrUeMac->SetNrSlUePhySapProvider (nrUePhy->GetNrSlUePhySapProvider ());
-  nrUeMac->SetAttribute ("EnableSensing", BooleanValue (true));
   nrUePhy->SetBwpId (0);
   nrUePhy->DoSetCellId (0);
   nrUePhy->SetSymbolsPerSlot (14);
@@ -278,12 +279,31 @@ NrSensingTestCase::DoRun ()
 
   // Call the sensing algorithm and inspect the list of slots that result.
   // This list would normally be passed to a scheduler as a next step.
+  // lSubch is the parameter we are testing.  If set to 1, it should return
+  // candidates of width one subchannel.  If set to 2, it should return
+  // candidates of width two subchannels (after the logic increases the
+  // sensing threshold from -128 dBm to -125 dBm)
+  uint16_t lSubch = 1; // Number of subchannels to use
+  // The following parameters don't matter here, but are needed for the constructor
+  Time packetDelayBudget = MilliSeconds (20);
+  Time pRsvpTx = MilliSeconds (100);
   uint16_t cResel = 5;
-  NrSlTransmissionParams params {0, MilliSeconds (20), 1, MilliSeconds (100), cResel};
+  NrSlTransmissionParams params {priority, packetDelayBudget, lSubch, pRsvpTx, cResel};
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = nrUeMac->GetNrSlCandidateResources (currentSfn, params);
   for (const NrSlUeMacSchedSapProvider::NrSlSlotInfo& slot : availableReso)
     {
-      NS_TEST_ASSERT_MSG_NE (slot.slSubchannelStart, 0, "Slot 0 should not be marked occupied");
+      NS_TEST_ASSERT_MSG_EQ (availableReso.size (), 15, "Expecting 15 resources");
+      NS_TEST_ASSERT_MSG_NE (slot.slSubchannelStart, 0, "Subchannel 0 should not be marked as available");
+    }
+  // Resetting the subchannel width to 2 should cause 15 resources of two subchannel width
+  lSubch = 2;
+  NrSlTransmissionParams params2 {priority, packetDelayBudget, lSubch, pRsvpTx, cResel};
+  availableReso = nrUeMac->GetNrSlCandidateResources (currentSfn, params2);
+  for (const NrSlUeMacSchedSapProvider::NrSlSlotInfo& slot : availableReso)
+    {
+      NS_TEST_ASSERT_MSG_EQ (availableReso.size (), 15, "Expecting 15 resources");
+      NS_TEST_ASSERT_MSG_EQ (slot.slSubchannelStart, 0, "Subchannel 0 should be marked as available");
+      NS_TEST_ASSERT_MSG_EQ (slot.slSubchannelLength, 2, "Full subchannel width should be available");
     }
 }
 
