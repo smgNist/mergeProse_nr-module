@@ -1482,7 +1482,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
   // step 5: filter candidateResources based on transmit history, if threshold
   // defined in step 5a) is met
   auto candidatesToCheck = candidateResources;
-  ExcludeResourcesBasedOnHistory (sfn, updatedHistory, candidatesToCheck, m_slTxPool->GetSlResourceReservePeriodList (bwpId, poolId));
+  ExcludeResourcesBasedOnHistory (sfn, updatedHistory, candidatesToCheck, txPool->GetSlResourceReservePeriodList (bwpId, poolId));
   if (candidatesToCheck.size () >= (GetResourcePercentage () / 100.0) * mTotal)
     {
       NS_LOG_DEBUG ("Step 5 filter results: original: " << candidateResources.size ()
