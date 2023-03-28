@@ -241,7 +241,21 @@ public:
 
 private:
   virtual void DoRun (void) override;
+  void TraceSensingAlgorithm (const struct NrUeMac::SensingTraceReport& report,
+    const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candidates,
+    const std::list<SensingData>& sensingData, const std::list<SfnSf>& transmitHistory) const;
 };
+
+void
+NrSensingTestCase::TraceSensingAlgorithm (const struct NrUeMac::SensingTraceReport& report,
+    const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candidates,
+    const std::list<SensingData>& sensingData, const std::list<SfnSf>& transmitHistory) const
+{
+  NS_LOG_DEBUG ("Sfn " << report.m_sfn.Normalize () << " candidates " << candidates.size () << " sensing " << sensingData.size () << " history " << transmitHistory.size ());
+  NS_LOG_DEBUG ("subch " << report.m_subchannels << " rsrp " << report.m_finalRsrpThreshold
+    << " initial slots " << report.m_initialCandidateSlotsSize << " initial resources " 
+    << report.m_initialCandidateResourcesSize);
+}
 
 void
 NrSensingTestCase::DoRun ()
@@ -255,6 +269,7 @@ NrSensingTestCase::DoRun ()
   nrUeMac->SetAttribute ("T2", UintegerValue (33));
   nrUeMac->SetAttribute ("ResourcePercentage", UintegerValue (20));
   nrUeMac->SetAttribute ("SlThresPsschRsrp", IntegerValue (-128));
+  nrUeMac->TraceConnectWithoutContext("SensingAlgorithm", MakeCallback(&NrSensingTestCase::TraceSensingAlgorithm, this));
 
   // Time 2.11 seconds similar to cttc-nr-v2x-demo-simple first transmission
   SfnSf currentSfn (211, 0, 0, 2);
