@@ -230,17 +230,39 @@ where :math:`n` is the slot at which the resource selection is triggered, and
 is a ``MAC`` layer parameter. In what follows we will dive into the details of
 UE's ``MAC`` layer operation to perform sensing-based resource selection.
 
-At slot :math:`n`, when a resource selection is triggered for a destination, the
-``MAC`` layer draws a random counter known as Sidelink Resource Reselection
-Counter (SLRRC) based on the user configured Resource Reservation Period (PRSVP)
-value, which is used to compute :math:`C_\text{resel}`. Then, for an active
-pool configured by the ``RRC``, it computes the candidate resources
-(i.e., available slots) for sidelink transmission based on the selection window
-parameters, :math:`T_\text{1}`, :math:`T_\text{2,min}`, and :math:`T_\text{2}`.
+The sensing algorithm to support mode 2 resource allocation closely tracks
+the algorithm as specified in Section 8.1.4 of 3GPP TS 38.214 [TS38214]_.
+In the standard, it is specified as a PHY layer function that reports to
+the "higher layers," but the implementation in ns-3 is in the ``NrUeMac``
+class, and specifically the ``GetNrSlCandidateResources`` method.  The
+sidelink mode 2 scheduler will query the ``NrUeMac`` for candidate
+resources when new data is available to be scheduled.  Resources occupy
+one slot in time duration and one or more contiguous subchannels in frequency.
+The selection window is defined by the parameters
+:math:`T_\text{1}`, :math:`T_\text{2,min}`, and :math:`T_\text{2}`.
+The sensing window is defined by the parameters :math:`T_\text{0}` and
+:math:`T_\text{proc0}`.  The algorithm relies on both previously decoded
+SCI format 1-A control data and on the transmit history.  For semi-persistent
+scheduling, the reception of the SCI format 1-A in the sensing window indicates
+that up to `MaxNumPerReserve` resources (as indicated by the SCI format 1-A)
+were used by that sender within the sensing window.  The RSRP of the received
+(decoded) SCI format 1-A is also saved and compared against a threshold.
+Using the received Resource Reservation Interval (RRI), future projected
+repetitions of those resources that may exist in the selection window (if any) 
+are excluded from the candidate set.  The algorithm may also exclude resources
+based on past transmit history, under a half-duplex assumption that a radio
+transmitting on a resource cannot listen for possible receptions on another
+resource.  Based on the possible configured RRIs for the resource pool,
+all possible resource projections (according to each of the possible
+RRIs) are excluded from the candidates provided to the scheduler.  However,
+if the number of exclusions exceeds a threshold percentage, these transmit
+history exclusions are removed.
+
 Since the final resources must be selected based on sensing information, the MAC
 follows the standard procedure described in Section III-B1 of [cttc-nr-v2x]_, to
 filter out the resources from the total available ones, which could be occupied
-by the other transmitting UEs. Once the filtered candidate resources' list is
+by the other transmitting UEs. 
+Once the filtered candidate resources' list is
 ready, the ``MAC`` layer forwards it to the scheduler. Our model provides a
 sample scheduler, which as per the standard [TS38331]_, first randomly selects a
 number of slots, i.e., :math:`N_\text{selected}`, for sidelink transmissions.
