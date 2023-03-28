@@ -374,6 +374,10 @@ NrUeMac::GetTypeId (void)
                      "PDU received trace also exporting TX UE RNTI in SL.",
                      MakeTraceSourceAccessor (&NrUeMac::m_rxRlcPduWithTxRnti),
                      "ns3::NrUeMac::ReceiveWithTxRntiTracedCallback")
+    .AddTraceSource ("SensingAlgorithm",
+                     "Candidates selected by the mode 2 sensing algorithm",
+                     MakeTraceSourceAccessor (&NrUeMac::m_tracedSensingAlgorithm),
+                     "ns3::NrUeMac::SensingAlgorithmTracedCallback")
           ;
 
   return tid;
@@ -1378,6 +1382,16 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
   NS_LOG_FUNCTION (this << sfn.GetFrame() << +sfn.GetSubframe() << sfn.GetSlot () << params << txPool
    << slotPeriod << imsi << +bwpId << poolId << +totalSubCh);
 
+  SensingTraceReport report;  // for tracing
+  report.m_sfn = sfn;
+  report.m_t0 = txPool->GetNrSlSensWindInSlots (bwpId, poolId, slotPeriod);
+  report.m_tProc0 = m_tproc0;
+  report.m_t1 = m_t1;
+  report.m_t2 = m_t2;
+  report.m_subchannels = totalSubCh;
+  report.m_lSubch = params.m_lSubch;
+  report.m_resourcePercentage = GetResourcePercentage ();
+
   NS_LOG_DEBUG ("Transmit  size: " << transmitHistory.size ()
     << "; sensing data size: " << sensingData.size ());
 
@@ -1417,6 +1431,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
 
   //step 4 as per TS 38.214 sec 8.1.4
   candidateSlots = txPool->GetNrSlCommOpportunities (absSlotIndex, bwpId, numerology, poolId, m_t1, m_t2);
+  report.m_initialCandidateSlotsSize = candidateSlots.size ();
   if (candidateSlots.size () == 0)
     {
       //Since, all the parameters (i.e., T1, T2min, and T2) of the selection
@@ -1428,6 +1443,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
 
   candidateResources = GetNrSlCandidateResourcesFromSlots (sfn, params.m_lSubch, totalSubCh, candidateSlots);
   uint32_t mTotal = candidateResources.size (); // total number of candidate single-slot resources
+  report.m_initialCandidateResourcesSize = mTotal;
   if (!m_enableSensing)
     {
       NS_LOG_DEBUG ("No sensing: Total slots selected " << mTotal);
@@ -1489,6 +1505,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
         << " updated: " << candidatesToCheck.size () << " X: " << GetResourcePercentage ()/ 100.0);
       candidateResources = candidatesToCheck;
     }
+  report.m_candidateResourcesSizeAfterStep5 = candidateResources.size ();
 
   //step 6
 
@@ -1510,6 +1527,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
   NS_LOG_DEBUG ("Size of sensingDataProjections outer vector: " << sensingDataProjections.size ());
 
   int rsrpThreshold = m_thresRsrp;
+  report.m_initialRsrpThreshold = m_thresRsrp;
   do
     {
       //following assignment is needed since we might have to perform
@@ -1588,6 +1606,8 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
 
   NS_LOG_DEBUG (candidateResources.size () << " slots selected after sensing resource selection from " << mTotal << " slots");
 
+  report.m_finalRsrpThreshold = (rsrpThreshold - 3); // undo the last increment
+  m_tracedSensingAlgorithm (report, candidateResources, updatedSensingData, updatedHistory);
   return candidateResources;
 }
 
