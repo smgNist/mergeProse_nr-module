@@ -1331,6 +1331,7 @@ NrUeMac::ExcludeResourcesBasedOnHistory (const SfnSf& sfn, const std::list<SfnSf
   for (auto listIt : slResourceReservePeriodList)
     {
       if (listIt == 0) continue;  // 0ms value is ignored
+      listIt *= (1 << sfn.GetNumerology ());  // Convert from ms to slots
       for (auto historyIt : transmitHistory)
         {
           uint16_t i = 1;
@@ -1532,7 +1533,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
     {
       //following assignment is needed since we might have to perform
       //multiple do-while over the same list by increasing the rsrpThreshold
-      candidateResources = GetNrSlCandidateResourcesFromSlots (sfn, params.m_lSubch, totalSubCh, candidateSlots);
+      candidateResources = candidatesToCheck;
       NS_LOG_DEBUG ("Step 6 loop iteration checking " << candidateResources.size () << " resources against threshold " << rsrpThreshold);
       auto itCandidate = candidateResources.begin ();
       // itCandidate is the candidate single-slot resource R_x,y
