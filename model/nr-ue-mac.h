@@ -43,6 +43,7 @@
 // test classes outside of namespace ns3
 class NrSensingTestCase;
 class NrSlRemoveOldSensingDataTest;
+class NrSensingTransmitHistoryTest;
 
 namespace ns3 {
 
@@ -152,6 +153,7 @@ class NrUeMac : public Object
   // Unit-test access to protected/private members
   friend class ::NrSensingTestCase;
   friend class ::NrSlRemoveOldSensingDataTest;
+  friend class ::NrSensingTransmitHistoryTest;
 
 public:
   /**

@@ -334,6 +334,90 @@ NrSensingTestCase::DoRun ()
 }
 
 /**
+ * \brief Check that a past transmission in the sensing window is appropriately
+ *        excluded.
+ */
+class NrSensingTransmitHistoryTest : public TestCase
+{
+public:
+  /**
+   * \brief NrSensingTransmitHistoryTest
+   * \param name Name of the test
+   */
+  NrSensingTransmitHistoryTest (const std::string &name)
+    : TestCase (name) {}
+
+private:
+  virtual void DoRun (void) override;
+  void TraceSensingAlgorithm (const struct NrUeMac::SensingTraceReport& report,
+    const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candidates,
+    const std::list<SensingData>& sensingData, const std::list<SfnSf>& transmitHistory) const;
+};
+
+void
+NrSensingTransmitHistoryTest::TraceSensingAlgorithm (const struct NrUeMac::SensingTraceReport& report,
+    const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candidates,
+    const std::list<SensingData>& sensingData, const std::list<SfnSf>& transmitHistory) const
+{
+  NS_LOG_DEBUG ("Sfn " << report.m_sfn.Normalize () << " candidates " << candidates.size () << " sensing " << sensingData.size () << " history " << transmitHistory.size ());
+  NS_LOG_DEBUG ("subch " << report.m_subchannels << " rsrp " << report.m_finalRsrpThreshold
+    << " initial slots " << report.m_initialCandidateSlotsSize << " initial resources " 
+    << report.m_initialCandidateResourcesSize);
+}
+
+void
+NrSensingTransmitHistoryTest::DoRun ()
+{
+  NS_LOG_FUNCTION (this);
+
+  Ptr<NrUeMac> nrUeMac = CreateObject<NrUeMac> ();
+  // Set attributes used by the sensing code
+  nrUeMac->SetAttribute ("EnableSensing", BooleanValue (true));
+  nrUeMac->SetAttribute ("T1", UintegerValue (2));
+  nrUeMac->SetAttribute ("T2", UintegerValue (33));
+  nrUeMac->SetAttribute ("ResourcePercentage", UintegerValue (20));
+  nrUeMac->SetAttribute ("SlThresPsschRsrp", IntegerValue (-128));
+  nrUeMac->TraceConnectWithoutContext("SensingAlgorithm", MakeCallback(&NrSensingTransmitHistoryTest::TraceSensingAlgorithm, this));
+
+  // Time 2.11 seconds similar to cttc-nr-v2x-demo-simple first transmission
+  SfnSf currentSfn (211, 0, 0, 2);
+  // T_0 is 400 slots behind = 100 ms behind
+  SfnSf t0Sfn (201, 0, 0, 2);
+
+  std::list<SensingData> sensingDataList; // empty
+  std::list<SfnSf> transmitHistory;
+  // CreateNrSlCommResourcePool() above sets resourceReservePeriodList to 100ms 
+  // There is a sidelink slot in the selection window at normalized slot
+  // 8445.  The below code creates a fake past transmission for 100 ms prior
+  // (400 slots prior), at 8045.  The step 5 in the algorithm should remove
+  // the candidates at normalized slot 8445 as a result.
+  SfnSf pastTransmission (201, 1, 1, 2); // Normalized slot 8045
+  transmitHistory.push_back (pastTransmission);
+  Time slotPeriod = MicroSeconds (250); // numerology 2
+  uint64_t imsi = 0; // parameter only used for logging
+  uint8_t bwpId = 0;
+  uint16_t poolId = 0;
+  uint8_t totalSubCh = 2;  // Two subchannels in the BWP
+
+  // Call the sensing algorithm and inspect the list of slots that result.
+  uint16_t lSubch = 1; // Number of subchannels to use
+  // The following parameters don't matter here, but are needed for the constructor
+  Time packetDelayBudget = MilliSeconds (20);
+  Time pRsvpTx = MilliSeconds (100);
+  uint16_t cResel = 5;
+  uint8_t priority = 0;
+  NrSlTransmissionParams params {priority, packetDelayBudget, lSubch, pRsvpTx, cResel};
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso;
+  availableReso = nrUeMac->GetNrSlCandidateResourcesPrivate (currentSfn, params, CreateNrSlCommResourcePool (totalSubCh), 
+    slotPeriod, imsi, bwpId, poolId, totalSubCh, sensingDataList, transmitHistory);
+
+  for (auto it : availableReso)
+    {
+      NS_TEST_ASSERT_MSG_NE (it.sfn.Normalize (), 8445, "Slot 8445 should be excluded");
+    }
+}
+
+/**
  * \brief RemoveOldSensingData testcase
  */
 class NrSlRemoveOldSensingDataTest : public TestCase
@@ -391,6 +475,7 @@ public:
   NrSensingTestSuite () : TestSuite ("nr-sensing", SYSTEM)
   {
     AddTestCase (new NrSensingTestCase ("Check algorithm iterating steps 4-7 when one subchannel occupied"), QUICK);
+    AddTestCase (new NrSensingTransmitHistoryTest ("Check exclusions due to past transmit history"), QUICK);
     AddTestCase (new NrSlRemoveOldSensingDataTest ("Check RemoveOldSensingData"), QUICK);
   }
 };
