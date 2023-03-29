@@ -331,6 +331,31 @@ NrSensingTestCase::DoRun ()
       NS_TEST_ASSERT_MSG_EQ (slot.slSubchannelStart, 0, "Subchannel 0 should be marked as available");
       NS_TEST_ASSERT_MSG_EQ (slot.slSubchannelLength, 2, "Full subchannel width should be available");
     }
+
+
+  // Check that sensing data entered in slots 8045 and 8046 cause exclusions
+  // 100ms later at slots 8445 and 8446
+  std::list<SensingData> sensingDataList2;
+  for (uint32_t i = 0; i < 400; i++)
+    {
+      SfnSf slot = t0Sfn;
+      slot.Add (i);
+      if (slot.Normalize () == 8045 || slot.Normalize () == 8046)
+        {
+          SensingData sensingData (slot, rsvp, sbChLength, sbChStart, priority,
+            rsrpDbm, 255, 255, 255, 255);
+          sensingDataList2.push_back (sensingData);
+        }
+    }
+  availableReso = nrUeMac->GetNrSlCandidateResourcesPrivate (currentSfn, params2, CreateNrSlCommResourcePool (totalSubCh), 
+    slotPeriod, imsi, bwpId, poolId, totalSubCh, sensingDataList2, transmitHistory);
+  // Two resources (at 8445 and 8446) should have been excluded from the original 15
+  NS_TEST_ASSERT_MSG_EQ (availableReso.size (), 13, "Expecting 13 resources");
+  for (auto it : availableReso)
+    {
+      NS_TEST_ASSERT_MSG_NE (it.sfn.Normalize (), 8445, "Slot 8445 should be excluded");
+      NS_TEST_ASSERT_MSG_NE (it.sfn.Normalize (), 8446, "Slot 8446 should be excluded");
+    }
 }
 
 /**
