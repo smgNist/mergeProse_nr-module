@@ -688,7 +688,7 @@ NrSlUeMacSchedulerDefault::LogicalChannelPrioritization (const SfnSf& sfn,
         lcgMap.begin ()->second->GetLcPdb (lcIdOfRef), lSubch,
         lcgMap.begin ()->second->GetLcRri (lcIdOfRef), m_cResel};
       std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> filteredReso;
-      filteredReso = FilterTxOpportunities (m_nrUeMac->GetNrSlCandidateResources (sfn, params));
+      filteredReso = FilterTxOpportunities (m_nrUeMac->GetNrSlAvailableResources (sfn, params));
       if (filteredReso.size () == 0)
         {
           NS_LOG_DEBUG ("Resources not found");

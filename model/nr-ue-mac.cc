@@ -1401,6 +1401,19 @@ NrUeMac::FilterNrSlCandidateResources (std::list <NrSlUeMacSchedSapProvider::NrS
    return candidateReso;
 }
 
+std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
+NrUeMac::GetNrSlAvailableResources (const SfnSf& sfn, const NrSlTransmissionParams& params)
+{
+  NS_LOG_FUNCTION (this << sfn.GetFrame() << +sfn.GetSubframe() << sfn.GetSlot () << params);
+
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableResources;
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> candidateResources;
+
+  candidateResources = GetNrSlCandidateResources (sfn, params);
+  availableResources = FilterNrSlCandidateResources (candidateResources);
+
+  return availableResources;
+}
 
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
 NrUeMac::GetNrSlCandidateResources (const SfnSf& sfn, const NrSlTransmissionParams& params)
@@ -1453,7 +1466,6 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
   // should be passed from nr-sl-comm-resource-pool to begin with.
 
   std::list <NrSlCommResourcePool::SlotInfo> candidateSlots; // candidate single slots
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> unfilteredCandidateResources;
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> candidateResources;// S_A as per TS 38.214
 
   uint64_t absSlotIndex = sfn.Normalize ();

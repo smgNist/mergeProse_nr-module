@@ -249,8 +249,24 @@ public:
   /**
    * In resource allocation mode 2, the higher layer can request the UE to
    * determine a subset of resources from which the higher layer will select
-   * resources for PSSCH/PSCCH transmission.  This method implements the
-   * algorithm specified in 3GPP TR 38.214 v16.7.0  Section 8.1.4.
+   * resources for PSSCH/PSCCH transmission. This function first call the
+   * GetNrSlCandidateResources function to determine the set of candidate
+   * resources according to 3GPP TR 38.214 v16.7.0 Section 8.1.4 and then
+   * it filters out the resources that are already part of a published grant
+   * by calling the function FilterNrSlCandidateResources.
+   *
+   * \brief Get NR sidelink available resources
+   *
+   * \param sfn The current system frame, subframe, and slot number.
+   * \param params The input transmission parameters for the algorithm
+   * \return The list of the transmit opportunities (slots) as per the TDD pattern
+   *         and the NR SL bitmap
+   */
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> GetNrSlAvailableResources (const SfnSf& sfn, const NrSlTransmissionParams& params);
+
+  /**
+   * This method implements the algorithm specified in 3GPP TR 38.214 v16.7.0
+   * Section 8.1.4.
    *
    * \brief Get NR sidelink candidate single-slot resources
    * 
