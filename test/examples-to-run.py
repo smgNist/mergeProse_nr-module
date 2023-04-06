@@ -57,6 +57,15 @@ cpp_examples = [
     ("nr-v2x-west-to-east-highway --enableSensing=1 --simTag=testpy-sensing", "True", "True"),
     ("nr-v2x-west-to-east-highway --enableSensing=0 --simTag=testpy-nosensing", "True", "True"),
     ("cttc-nr-v2x-demo-simple --simTag=testpy", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=1 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=2 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=3 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=true", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=4 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=4 --dstL2IdConfig=2 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=3 --dstL2IdConfig=1 --priorityConfig=3 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=3 --dstL2IdConfig=1 --priorityConfig=3 --rriConfig=1 --prioToSps=true", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=4 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=true", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=2 --dstL2IdConfig=1 --priorityConfig=3 --rriConfig=2 --prioToSps=true", "True", "True"),
     ]
 
 # A list of Python examples to run in order to ensure that they remain
