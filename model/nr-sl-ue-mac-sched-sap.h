@@ -182,6 +182,14 @@ public:
    * \param isSidelinkSlot Whether the slot is a sidelink slot
    */
   virtual void SlotIndication (SfnSf sfn, bool isSidelinkSlot) = 0;
+  /**
+   * \brief Tell the scheduler that an RLC PDU packet has been dequeue and is now on the HARQ buffer
+   *
+   * \param dstL2Id The destination layer 2 ID
+   * \param lcId The logical channel ID
+   * \param size The size of the RLC PDU
+   */
+  virtual void NotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size) = 0;
 };
 
 /**

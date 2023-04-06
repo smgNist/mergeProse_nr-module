@@ -325,6 +325,19 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, const std:
 
 }
 
+void
+NrSlUeMacSchedulerDefault::DoNotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size)
+{
+  NS_LOG_FUNCTION (this << dstL2Id << +lcId << size);
+
+  const auto itDstInfo = m_dstMap.find (dstL2Id);
+  const auto & lcgMap = itDstInfo->second->GetNrSlLCG ();
+  lcgMap.begin ()->second->AssignedData (lcId, size);
+
+  return;
+}
+
+
 bool
 NrSlUeMacSchedulerDefault::TxResourceReselectionCheck (uint32_t dstL2Id, uint8_t lcId)
 {
@@ -1401,13 +1414,6 @@ NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapP
       slotAllocList.emplace (slotAlloc);
     }
 
-  //Assign data to all LCs
-  const auto itDstInfo = m_dstMap.find (dstInfo->GetDstL2Id ());
-  const auto & lcgMap = itDstInfo->second->GetNrSlLCG ();
-  for (auto & itRlcPdu : allocationInfo.m_allocatedRlcPdus)
-    {
-      lcgMap.begin ()->second->AssignedData (itRlcPdu.lcid, itRlcPdu.size);
-    }
   return allocated;
 }
 

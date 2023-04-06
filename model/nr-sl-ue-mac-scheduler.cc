@@ -115,6 +115,11 @@ NrSlUeMacGeneralSchedSapProvider::SlotIndication (SfnSf sfn, bool isSidelinkSlot
 {
   m_scheduler->DoSlotIndication (sfn, isSidelinkSlot);
 }
+void
+NrSlUeMacGeneralSchedSapProvider::NotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size)
+{
+  m_scheduler->DoNotifyNrSlRlcPduDequeue (dstL2Id, lcId, size);
+}
 
 } // namespace ns3
 

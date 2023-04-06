@@ -2334,6 +2334,7 @@ NrUeMac::DoTransmitNrSlRlcPdu (const NrSlMacSapProvider::NrSlRlcPduParameters &p
   params.pdu->AddPacketTag (bearerTag);
   NS_LOG_DEBUG ("Adding packet in HARQ buffer for HARQ ID " << +params.harqProcessId << " pkt size " << params.pdu->GetSize ());
   m_nrSlHarq->AddPacket (params.dstL2Id, params.lcid, params.harqProcessId, params.pdu);
+  m_nrSlUeMacSchedSapProvider->NotifyNrSlRlcPduDequeue (params.dstL2Id, params.lcid, params.pdu->GetSize ());
 }
 
 void

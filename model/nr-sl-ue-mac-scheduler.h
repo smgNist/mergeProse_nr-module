@@ -112,6 +112,14 @@ public:
    * \param isSidelinkSlot Whether the slot is a sidelink slot
    */
   virtual void DoSlotIndication (SfnSf sfn, bool isSidelinkSlot) = 0;
+  /**
+   * \brief Tell the scheduler that an RLC PDU packet has been dequeue and is now on the HARQ buffer
+   *
+   * \param dstL2Id The destination layer 2 ID
+   * \param lcId The logical channel ID
+   * \param size The size of the RLC PDU
+   */
+  virtual void DoNotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size) = 0;
 
   /**
    * \brief Set pointer to associated NrUeMac object
@@ -176,6 +184,7 @@ public:
   virtual void SchedUeNrSlRlcBufferReq (const struct NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams& params) override;
   virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, const std::deque<uint8_t>& ids) override;
   virtual void SlotIndication (SfnSf sfn, bool isSidelinkSlot) override;
+  virtual void NotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size) override;
 
 private:
   NrSlUeMacScheduler* m_scheduler {nullptr}; //!< pointer to the scheduler API using this SAP

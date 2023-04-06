@@ -97,6 +97,16 @@ public:
    * \param ids available HARQ process IDs from the MAC
    */
   virtual void DoSchedUeNrSlTriggerReq (const SfnSf& sfn, const std::deque<uint8_t>& ids) override;
+
+  /**
+   * \brief Tell the scheduler that an RLC PDU packet has been dequeue and is now on the HARQ buffer
+   *
+   * \param dstL2Id The destination layer 2 ID
+   * \param lcId The logical channel ID
+   * \param size The size of the RLC PDU
+   */
+  virtual void  DoNotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size) override;
+
   /**
    * \brief Perform the Tx resource (re-)selection check for the given destination and logical channel
    *
