@@ -149,6 +149,7 @@ struct NrSlSlotAlloc
 {
   SfnSf sfn {}; //!< The SfnSf
   uint32_t dstL2Id {std::numeric_limits <uint32_t>::max ()}; //!< The destination Layer 2 Id
+  uint8_t lcId {std::numeric_limits <uint8_t>::max ()}; //!< The logical channel ID
 
   uint8_t ndi {std::numeric_limits <uint8_t>::max ()}; //!< The flag to indicate the new data allocation
   uint8_t rv {std::numeric_limits <uint8_t>::max ()}; //!< The redundancy version
@@ -372,6 +373,30 @@ struct SlotSensingData
   uint8_t prio {std::numeric_limits <uint8_t>::max ()}; //!< The priority
   double slRsrp {0.0}; //!< The measured RSRP value over the used resource blocks
 };
+
+/**
+ * \brief Stream output operator for SensingData
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, SensingData const & p);
+
+/**
+ * \brief Stream output operator for SlotSensingData
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, SlotSensingData const & p);
+
+/**
+ * \brief Stream output operator for NrSlSlotAlloc
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlSlotAlloc const & p);
 
 }
 

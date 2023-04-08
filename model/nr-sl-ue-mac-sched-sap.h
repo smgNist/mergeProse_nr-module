@@ -25,9 +25,26 @@
 #include <list>
 #include <vector>
 #include <memory>
+#include <deque>
 
 
 namespace ns3 {
+
+/**
+ * \ingroup scheduler
+ *
+ * \brief Structure to pass parameters to trigger the selection of candidate
+ * resources as per TR 38.214 Section 8.1.4
+ */
+struct NrSlTransmissionParams
+{
+  NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx, uint16_t cResel);
+  uint8_t m_priority {0};  //!< L1 priority prio_TX
+  Time m_packetDelayBudget {Seconds (0)}; //!< remaining packet delay budget
+  uint16_t m_lSubch {0}; //!< L_subCH; number of subchannels to be used
+  Time m_pRsvpTx {0}; //!< resource reservation interval
+  uint16_t m_cResel {0}; //!< C_resel counter
+};
 
 /**
  * \ingroup scheduler
@@ -58,11 +75,13 @@ public:
      * \param slSubchannelSize Indicates the subchannel size in number of RBs
      * \param slMaxNumPerReserve Indicates the maximum number of reserved PSCCH/PSSCH resources that can be indicated by an SCI.
      * \param sfn The SfnSf
-     * \param occupiedSbCh The set of occupied subchannel indexes (variable only used by UE MAC sensing code)
+     * \param slSubchannelStart The starting subchannel index
+     * \param slSubchannelLength The number of subchannels
      */
     NrSlSlotInfo (uint16_t numSlPscchRbs, uint16_t slPscchSymStart, uint16_t slPscchSymLength,
                       uint16_t slPsschSymStart, uint16_t slPsschSymLength, uint16_t slSubchannelSize,
-                      uint16_t slMaxNumPerReserve, SfnSf sfn, std::set <uint8_t> occupiedSbCh)
+                      uint16_t slMaxNumPerReserve, SfnSf sfn, 
+                      uint8_t slSubchannelStart, uint8_t slSubchannelLength)
     {
       this->numSlPscchRbs = numSlPscchRbs;
       this->slPscchSymStart = slPscchSymStart;
@@ -72,7 +91,8 @@ public:
       this->slSubchannelSize = slSubchannelSize;
       this->slMaxNumPerReserve = slMaxNumPerReserve;
       this->sfn = sfn;
-      this->occupiedSbCh = occupiedSbCh;
+      this->slSubchannelStart = slSubchannelStart;
+      this->slSubchannelLength = slSubchannelLength;
     }
     //PSCCH
     uint16_t numSlPscchRbs {0}; //!< Indicates the number of PRBs for PSCCH in a resource pool where it is not greater than the number PRBs of the subchannel.
@@ -85,9 +105,8 @@ public:
     uint16_t slSubchannelSize {std::numeric_limits <uint16_t>::max ()}; //!< Indicates the subchannel size in number of RBs
     uint16_t slMaxNumPerReserve {std::numeric_limits <uint16_t>::max ()}; //!< The maximum number of reserved PSCCH/PSSCH resources that can be indicated by an SCI.
     SfnSf sfn {}; //!< The SfnSf
-    //occupiedSbCh set is filled by the UE MAC before
-    //giving the available candidate slots to the scheduler
-    std::set <uint8_t> occupiedSbCh; //!< The set of occupied subchannel indexes (variable only used by UE MAC sensing code)
+    uint8_t slSubchannelStart {std::numeric_limits <uint8_t>::max ()}; //!< Starting index of subchannel for this resource
+    uint8_t slSubchannelLength {std::numeric_limits <uint8_t>::max ()}; //!< Number of continuous subchannels starting from the index
 
     /**
      * \brief operator < (less than)
@@ -153,10 +172,17 @@ public:
   /**
    * \brief Send NR Sidleink trigger request from UE MAC to the UE scheduler
    *
+   * \param sfn The SfnSf
    * \param dstL2Id The destination layer 2 id
-   * \param params NrSlUeMacSchedSapProvider::NrSlSlotInfo
+   * \param ids available HARQ process IDs
    */
-  virtual void SchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlSlotInfo>& params) = 0;
+  virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::deque<uint8_t>& ids) = 0;
+  /**
+   * \brief Tell the scheduler that a new slot has started
+   * \param sfn Ths current SfnSf
+   * \param isSidelinkSlot Whether the slot is a sidelink slot
+   */
+  virtual void SlotIndication (SfnSf sfn, bool isSidelinkSlot) = 0;
 };
 
 /**
@@ -172,15 +198,37 @@ public:
    */
   virtual ~NrSlUeMacSchedSapUser () = default;
 
+  ///NR Sidelink grant Information
+  struct NrSlGrantInfo
+  {
+    uint16_t cReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< The Cresel counter for the semi-persistently scheduled resources as per TS 38.214
+    uint8_t slResoReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< The Sidelink resource re-selection counter for the semi-persistently scheduled resources as per TS 38.214
+    std::set <NrSlSlotAlloc> slotAllocations; //!< List of all the slots available for transmission with the pool
+    uint8_t prevSlResoReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< Previously drawn Sidelink resource re-selection counter
+    uint8_t nrSlHarqId {std::numeric_limits <uint8_t>::max ()}; //!< The NR SL HARQ process id assigned at the time of transmitting new data
+    uint8_t nSelected {0}; //!< The number of slots selected by the scheduler for first reservation period
+    uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
+    bool isDynamic {false}; //!< true if the grant is for dynamic scheduling (single-PDU), false if it is for semi-persistent scheduling
+    Time rri {0}; //!< The resource reservation interval for the semi-persistent scheduled grant
+  };
+
+  struct NrSlGrant
+  {
+    std::set <NrSlSlotAlloc> slotAllocations; //!< List of all the slots available for transmission with the pool
+    uint8_t nrSlHarqId {std::numeric_limits <uint8_t>::max ()}; //!< The NR SL HARQ process id assigned at the time of transmitting new data
+    uint8_t nSelected {0}; //!< The number of slots selected by the scheduler for first reservation period
+    uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
+    uint32_t tbSize {0}; //!< Size of Transport Block in bytes
+    Time rri {0}; //!< The resource reservation interval for the semi-persistent scheduled grant
+  };
+
   /**
-   * \brief Send the NR Sidelink allocation from the UE scheduler to NrUeMac
-   *
-   * \param slotAllocList The slot allocation list passed by a specific
-   *        scheduler to NrUeMac
-   *
-   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
+   * \brief Method to communicate NR SL grants from NR SL UE scheduler
+   * \param dstL2Id destination L2 ID
+   * \param lcId Logical Channel ID
+   * \param grant The sidelink grant
    */
-  virtual void SchedUeNrSlConfigInd (const std::set<NrSlSlotAlloc>& slotAllocList) = 0;
+  virtual void SchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlGrant& grant) = 0;
 
   /**
    * \brief Method to get total number of sub-channels.
@@ -205,8 +253,31 @@ public:
  * \param p struct whose parameter to output
  * \return updated stream
  */
+std::ostream & operator<< (std::ostream & os, NrSlTransmissionParams const & p);
+
+/**
+ * \brief Stream output operator
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
 std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams const & p);
 
+/**
+ * \brief Stream output operator
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapProvider::NrSlSlotInfo const & p);
+
+/**
+ * \brief Stream output operator
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapUser::NrSlGrantInfo const & p);
 
 } // namespace ns3
 

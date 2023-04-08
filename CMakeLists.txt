@@ -103,12 +103,12 @@ set(source_files
     model/nr-sl-sci-f2a-header.cc
     model/nr-sl-sci-f2-header.cc
     model/nr-sl-ue-mac-harq.cc
+    model/nr-sl-ue-mac-csched-sap.cc
     model/nr-sl-ue-mac-sched-sap.cc
     model/nr-sl-ue-mac-scheduler.cc
     model/nr-sl-ue-mac-scheduler-dst-info.cc
     model/nr-sl-ue-mac-scheduler-lcg.cc
-    model/nr-sl-ue-mac-scheduler-ns3.cc
-    model/nr-sl-ue-mac-scheduler-simple.cc
+    model/nr-sl-ue-mac-scheduler-default.cc
     model/nr-sl-ue-phy-sap.cc
     model/nr-sl-discovery-header.cc
     model/nr-sl-pc5-signalling-header.cc
@@ -237,8 +237,7 @@ set(header_files
     model/nr-sl-ue-mac-scheduler-dst-info.h
     model/nr-sl-ue-mac-scheduler.h
     model/nr-sl-ue-mac-scheduler-lcg.h
-    model/nr-sl-ue-mac-scheduler-ns3.h
-    model/nr-sl-ue-mac-scheduler-simple.h
+    model/nr-sl-ue-mac-scheduler-default.h
     model/nr-sl-ue-phy-sap.h
     model/nr-sl-discovery-header.h
     model/nr-sl-pc5-signalling-header.h
@@ -279,6 +278,7 @@ set(test_sources
     test/nr-power-allocation.cc
     test/nr-test-harq.cc
     test/test-nr-sl-sci-headers.cc
+    test/nr-sensing-test.cc
 )
 
 build_lib(

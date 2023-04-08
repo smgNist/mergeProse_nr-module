@@ -52,7 +52,7 @@
  * through the command line.
  *
  * \code{.unparsed}
-$ ./waf --run "nr-v2x-west-to-east-highway --help"
+$ ./ns3 run "nr-v2x-west-to-east-highway --help"
     \endcode
  *
  */
@@ -739,7 +739,6 @@ main (int argc, char *argv[])
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (static_cast<uint8_t> (t1)));
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (t2));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
-  nrHelper->SetUeMacAttribute ("ReservationPeriod", TimeValue (MilliSeconds (reservationPeriod)));
   nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (4));
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
   nrHelper->SetUeMacAttribute ("SlThresPsschRsrp", IntegerValue (slThresPsschRsrp));
@@ -795,10 +794,10 @@ main (int argc, char *argv[])
 
   /*
    * Set the SL scheduler attributes
-   * In this example we use NrSlUeMacSchedulerSimple scheduler, which uses
-   * fix MCS value
+   * In this example we use NrSlUeMacSchedulerDefault scheduler, which uses
+   * fixed MCS value
    */
-  nrSlHelper->SetNrSlSchedulerTypeId (NrSlUeMacSchedulerSimple::GetTypeId());
+  nrSlHelper->SetNrSlSchedulerTypeId (NrSlUeMacSchedulerDefault::GetTypeId());
   nrSlHelper->SetUeSlSchedulerAttribute ("FixNrSlMcs", BooleanValue (true));
   nrSlHelper->SetUeSlSchedulerAttribute ("InitialNrSlMcs", UintegerValue (mcs));
 
@@ -838,6 +837,8 @@ main (int argc, char *argv[])
   ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
   ptrFactory->SetSlSubchannelSize (slSubchannelSize);
   ptrFactory->SetSlMaxNumPerReserve (slMaxNumPerReserve);
+  std::list<uint16_t> resourceReservePeriodList = {0, reservationPeriod}; // in ms
+  ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
   //Once parameters are configured, we can create the pool
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   slResourcePoolNr = pool;
@@ -1002,6 +1003,10 @@ main (int argc, char *argv[])
   Address localAddress;
   uint16_t port = 8000;
   Ptr<LteSlTft> tft;
+  SidelinkInfo slInfo;
+  slInfo.m_castType = SidelinkInfo::CastType::Groupcast;
+  slInfo.m_dstL2Id = dstL2Id;
+  slInfo.m_rri = MilliSeconds (reservationPeriod);
   if (!useIPv6)
     {
       Ipv4InterfaceContainer ueIpIface;
@@ -1019,11 +1024,11 @@ main (int argc, char *argv[])
       remoteAddress = InetSocketAddress (groupAddress4, port);
       localAddress = InetSocketAddress (Ipv4Address::GetAny (), port);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, groupAddress4, slInfo);
       //Set Sidelink bearers
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, txSlUesNetDevice, tft);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, groupAddress4, slInfo);
       //Set Sidelink bearers
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, rxSlUesNetDevice, tft);
     }
@@ -1044,11 +1049,11 @@ main (int argc, char *argv[])
       remoteAddress = Inet6SocketAddress (groupAddress6, port);
       localAddress = Inet6SocketAddress (Ipv6Address::GetAny (), port);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, groupAddress6, slInfo);
       //Set Sidelink bearers for transmitting UEs
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, txSlUesNetDevice, tft);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, groupAddress6, slInfo);
       //Set Sidelink bearers for receiving UEs
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, rxSlUesNetDevice, tft);
     }

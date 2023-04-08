@@ -19,6 +19,26 @@
 
 namespace ns3 {
 
+NrSlTransmissionParams::NrSlTransmissionParams (uint8_t prio, Time pdb, uint16_t lSubch, Time pRsvpTx, uint16_t cResel)
+ : m_priority (prio),
+   m_packetDelayBudget (pdb),
+   m_lSubch (lSubch),
+   m_pRsvpTx (pRsvpTx),
+   m_cResel (cResel)
+{
+}
+
+std::ostream &operator<< (std::ostream &os,
+                          const NrSlTransmissionParams &p)
+{
+  os << "Prio: " << +p.m_priority
+     << ", PDB: " << p.m_packetDelayBudget.As (Time::MS)
+     << ", subchannels: " << p.m_lSubch
+     << ", RRI: " << p.m_pRsvpTx.As (Time::MS)
+     << ", Cresel: " << p.m_cResel;
+  return os;
+}
+
 std::ostream &operator<< (std::ostream &os,
                           const NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams &p)
 {
@@ -32,6 +52,43 @@ std::ostream &operator<< (std::ostream &os,
      << ", destination layer 2 id " << p.dstL2Id;
   return os;
 }
+
+std::ostream &operator<< (std::ostream &os,
+                          const NrSlUeMacSchedSapProvider::NrSlSlotInfo &p)
+{
+  os << "SfnSf: " << p.sfn
+     << " PscchRbs: " << p.numSlPscchRbs
+     << " PscchSymStart: " << p.slPscchSymStart
+     << " PscchSymLength: " << p.slPscchSymLength
+     << " PsschSymStart: " << p.slPsschSymStart
+     << " PsschSymLength: " << p.slPsschSymLength
+     << " SubchannelSize: " << p.slSubchannelSize
+     << " MaxNumPerReserve: " << p.slMaxNumPerReserve
+     << " SubchannelStart: " << +p.slSubchannelStart
+     << " SubchannelLength: " << +p.slSubchannelLength;
+  return os;
+}
+
+std::ostream &operator<< (std::ostream &os,
+                          const NrSlUeMacSchedSapUser::NrSlGrantInfo &p)
+{
+  os << "cReselCounter: " << p.cReselCounter
+     << " slResoReselCounter: " << static_cast<uint16_t> (p.slResoReselCounter)
+     << " prevSlResoReselCounter: " << static_cast<uint16_t> (p.prevSlResoReselCounter)
+     << " nrSlHarqId: " << static_cast<uint16_t> (p.nrSlHarqId)
+     << " nSelected: " << static_cast<uint16_t> (p.nSelected)
+     << " tbTxCounter: " << static_cast<uint16_t> (p.tbTxCounter);
+  if (!p.slotAllocations.empty ())
+    {
+      os << " slots: ";
+      for (const auto &it : p.slotAllocations)
+        {
+          os << std::endl << "    " << it;
+        }
+    }
+  return os;
+}
+
 
 bool
 NrSlUeMacSchedSapProvider::NrSlSlotInfo::operator < (const NrSlSlotInfo &rhs) const

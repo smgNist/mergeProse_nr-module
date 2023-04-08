@@ -1,4 +1,3 @@
-
 stages:
   - build
 
@@ -20,7 +19,7 @@ stages:
     - cp -r doc examples helper model test utils ns-3-dev/contrib/nr/
     - cp -r CMakeLists.txt ns-3-dev/contrib/nr/
     - cd ns-3-dev
-    - git checkout ns-3.36.1
+    - git checkout v2x-lte-dev
     - git log -1
     - export MPI_CI=1
     - CXX=$COMPILER ./ns3 configure -d $MODE -GNinja --enable-examples --enable-modules=flow-monitor,stats,nr --enable-tests --enable-asserts
@@ -28,21 +27,9 @@ stages:
     - ./ns3 build
     - ./test.py -n
     - ./ns3 clean
-    - git checkout v2x-lte-dev
     - rm -rf contrib/nr
-    - cd ..
-    - git checkout nr-v2x-dev
-    - mkdir -p ns-3-dev/contrib/nr
-    - cp -r doc examples helper model test utils ns-3-dev/contrib/nr/
-    - cp -r CMakeLists.txt ns-3-dev/contrib/nr/
-    - cd ns-3-dev
-    - CXX=$COMPILER ./ns3 configure -d $MODE -GNinja  --enable-examples --enable-tests --enable-modules=flow-monitor,stats,nr --enable-asserts
-    - ./ns3 build
-    - ./test.py
     - cd ../
     - rm -rf ns-3-dev
-  tags:
-    - cttc
   cache:
     # Use separate key for each (debug/optimized/release) jobs because
     # they run in parallel and will otherwise overwrite each other
@@ -92,8 +79,6 @@ stages:
 
 pages:
   stage: build
-  tags:
-    - cttc
   before_script:
     - apt-get update
     - DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata

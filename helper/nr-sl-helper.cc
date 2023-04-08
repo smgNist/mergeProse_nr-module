@@ -26,7 +26,7 @@
 #include <ns3/nr-point-to-point-epc-helper.h>
 #include <ns3/bandwidth-part-ue.h>
 #include <ns3/nr-sl-bwp-manager-ue.h>
-#include <ns3/nr-sl-ue-mac-scheduler-simple.h>
+#include <ns3/nr-sl-ue-mac-scheduler-default.h>
 #include <ns3/nr-sl-ue-mac-scheduler.h>
 #include <ns3/nr-sl-chunk-processor.h>
 #include <ns3/lte-rrc-sap.h>
@@ -54,7 +54,7 @@ NrSlHelper::NrSlHelper (void)
 {
   NS_LOG_FUNCTION (this);
   m_ueSlAmcFactory.SetTypeId (NrAmc::GetTypeId ());
-  m_ueSlSchedulerFactory.SetTypeId (NrSlUeMacSchedulerSimple::GetTypeId());
+  m_ueSlSchedulerFactory.SetTypeId (NrSlUeMacSchedulerDefault::GetTypeId());
 }
 
 NrSlHelper::~NrSlHelper (void)
@@ -127,7 +127,7 @@ NrSlHelper::DoActivateNrSlBearer (NetDeviceContainer ues, const Ptr<LteSlTft> tf
   NS_LOG_FUNCTION (this);
   for (NetDeviceContainer::Iterator i = ues.Begin (); i != ues.End (); ++i)
     {
-      NS_LOG_DEBUG ("Activating SL bearer at " << Simulator::Now () << " destination L2 id " << tft->GetDstL2Id ());
+      NS_LOG_DEBUG ("Activating SL bearer at " << Simulator::Now () << " destination L2 id " << tft->GetSidelinkInfo ().m_dstL2Id);
       m_epcHelper->ActivateNrSlBearerForUe (*i, Create<LteSlTft> (tft)) ;
     }
 }
@@ -187,13 +187,15 @@ NrSlHelper::PrepareSingleUeForSidelink (Ptr<NrUeNetDevice> nrUeDev, const std::s
       Ptr<NrSlUeMacScheduler> sched = CreateNrSlUeSched ();
       NS_ABORT_MSG_IF (sched == nullptr, "sched is null");
       ccMap.at (itBwps)->SetNrSlUeMacScheduler (sched);
+      sched->SetNrUeMac (nrUeDev->GetMac (itBwps));
+      nrUeDev->GetMac (itBwps)->SetNrSlUeMacScheduler (sched);
       //SAPs between the NR SL UE MAC scheduler and NrUeMac
       sched->SetNrSlUeMacCschedSapUser (nrUeDev->GetMac (itBwps)->GetNrSlUeMacCschedSapUser ());
       sched->SetNrSlUeMacSchedSapUser (nrUeDev->GetMac (itBwps)->GetNrSlUeMacSchedSapUser ());
       nrUeDev->GetMac (itBwps)->SetNrSlUeMacCschedSapProvider (sched->GetNrSlUeMacCschedSapProvider ());
       nrUeDev->GetMac (itBwps)->SetNrSlUeMacSchedSapProvider (sched->GetNrSlUeMacSchedSapProvider ());
       //Set AMC in the NR SL UE MAC scheduler
-      Ptr<NrSlUeMacSchedulerNs3> schedNs3 = sched->GetObject <NrSlUeMacSchedulerNs3> ();
+      Ptr<NrSlUeMacSchedulerDefault> schedNs3 = sched->GetObject <NrSlUeMacSchedulerDefault> ();
       schedNs3->InstallNrSlAmc (slAmc);
       //SAPs between MAC and PHY
       nrUeDev->GetPhy (itBwps)->SetNrSlUePhySapUser (nrUeDev->GetMac (itBwps)->GetNrSlUePhySapUser ());

@@ -232,7 +232,7 @@ public:
    */
   MemberNrSlUeMacSchedSapUser (NrUeMac* mac);
 
-  virtual void SchedUeNrSlConfigInd (const std::set<NrSlSlotAlloc>& params);
+  virtual void SchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlGrant& grant);
   virtual uint8_t GetTotalSubCh () const;
   virtual uint8_t GetSlMaxTxTransNumPssch () const;
 
@@ -244,10 +244,11 @@ MemberNrSlUeMacSchedSapUser::MemberNrSlUeMacSchedSapUser (NrUeMac* mac)
 :m_mac (mac)
 {
 }
+
 void
-MemberNrSlUeMacSchedSapUser::SchedUeNrSlConfigInd (const std::set<NrSlSlotAlloc>& params)
+MemberNrSlUeMacSchedSapUser::SchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlGrant& grant)
 {
-  m_mac->DoSchedUeNrSlConfigInd (params);
+  m_mac->DoSchedUeNrSlConfigInd (dstL2Id, lcId, grant);
 }
 
 uint8_t
@@ -336,13 +337,6 @@ NrUeMac::GetTypeId (void)
                    MakeUintegerAccessor (&NrUeMac::SetSlActivePoolId,
                                          &NrUeMac::GetSlActivePoolId),
                    MakeUintegerChecker<uint16_t> ())
-    .AddAttribute ("ReservationPeriod",
-                   "Resource Reservation Interval for NR Sidelink in ms"
-                   "Must be among the values included in LteRrcSap::SlResourceReservePeriod",
-                   TimeValue(MilliSeconds(100)),
-                   MakeTimeAccessor (&NrUeMac::SetReservationPeriod,
-                                     &NrUeMac::GetReservationPeriod),
-                   MakeTimeChecker ())
      .AddAttribute ("NumSidelinkProcess",
                     "Number of concurrent stop-and-wait Sidelink processes for this UE",
                     UintegerValue (4),
@@ -380,6 +374,10 @@ NrUeMac::GetTypeId (void)
                      "PDU received trace also exporting TX UE RNTI in SL.",
                      MakeTraceSourceAccessor (&NrUeMac::m_rxRlcPduWithTxRnti),
                      "ns3::NrUeMac::ReceiveWithTxRntiTracedCallback")
+    .AddTraceSource ("SensingAlgorithm",
+                     "Candidates selected by the mode 2 sensing algorithm",
+                     MakeTraceSourceAccessor (&NrUeMac::m_tracedSensingAlgorithm),
+                     "ns3::NrUeMac::SensingAlgorithmTracedCallback")
           ;
 
   return tid;
@@ -398,7 +396,6 @@ NrUeMac::NrUeMac (void) : Object ()
   m_nrSlUePhySapUser = new MemberNrSlUePhySapUser<NrUeMac> (this);
   m_nrSlUeMacCschedSapUser = new MemberNrSlUeMacCschedSapUser (this);
   m_nrSlUeMacSchedSapUser = new MemberNrSlUeMacSchedSapUser (this);
-  m_ueSelectedUniformVariable = CreateObject<UniformRandomVariable> ();
   m_nrSlHarq = CreateObject<NrSlUeMacHarq> ();
 }
 
@@ -414,7 +411,6 @@ NrUeMac::DoDispose ()
   m_ulBsrReceived.clear ();
   m_lcInfoMap.clear ();
   m_raPreambleUniformVariable = nullptr;
-  m_ueSelectedUniformVariable = nullptr;
   delete m_macSapProvider;
   delete m_cmacSapProvider;
   delete m_phySapUser;
@@ -425,6 +421,11 @@ NrUeMac::DoDispose ()
   delete m_nrSlUeMacSchedSapUser;
   m_nrSlHarq->Dispose ();
   m_nrSlHarq = nullptr;
+  if (m_nrSlUeMacScheduler)
+    {
+      m_nrSlUeMacScheduler->Dispose ();
+      m_nrSlUeMacScheduler = nullptr;
+    }
   m_slTxPool = nullptr;
   m_slRxPool = nullptr;
 }
@@ -515,6 +516,13 @@ uint8_t
 NrUeMac::GetNumHarqProcess () const
 {
   return m_numHarqProcess;
+}
+
+void
+NrUeMac::SetNrSlUeMacScheduler (Ptr<NrSlUeMacScheduler> scheduler)
+{
+  NS_LOG_FUNCTION (this << scheduler);
+  m_nrSlUeMacScheduler = scheduler;
 }
 
 // forwarded from MAC SAP
@@ -704,11 +712,31 @@ NrUeMac::DoSlotIndication (const SfnSf &sfn)
       SendSR ();
       m_srState = ACTIVE;
     }
-
+  bool isSidelinkSlot = false;
+  if (m_slTxPool)
+    {
+      isSidelinkSlot = m_slTxPool->IsSidelinkSlot (GetBwpId (), m_poolId, sfn.Normalize ());
+    }
+  if (m_nrSlUeMacSchedSapProvider)
+    {
+      if (m_enableSensing)
+        {
+          RemoveOldSensingData (sfn,
+            m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (), m_poolId, m_nrSlUePhySapProvider->GetSlotPeriod ()),
+            m_sensingData, m_imsi);
+          RemoveOldTransmitHistory (sfn,
+            m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (), m_poolId, m_nrSlUePhySapProvider->GetSlotPeriod ()),
+            m_transmitHistory, m_imsi);
+        }
+      for (const auto &itDst : m_sidelinkTxDestinations)
+        {
+          m_nrSlUeMacSchedSapProvider->SchedUeNrSlTriggerReq (sfn, itDst.first, m_nrSlHarq->GetAvailableHarqIds ());
+        }
+    }
   if (m_nrSlUeCmacSapUser != nullptr)
     {
       //trigger SL only when it is a SL slot
-      if (m_slTxPool->IsSidelinkSlot (GetBwpId (), m_poolId, sfn.Normalize ()))
+      if (isSidelinkSlot)
         {
           DoNrSlSlotIndication (sfn);
         }
@@ -1242,280 +1270,406 @@ NrUeMac::AssignStreams (int64_t stream)
 {
   NS_LOG_FUNCTION (this << stream);
   m_raPreambleUniformVariable ->SetStream (stream);
-  m_ueSelectedUniformVariable->SetStream (stream + 1);
-  return 2;
+  return 1;
 }
 //NR SL
 
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
-NrUeMac::GetNrSlTxOpportunities (const SfnSf& sfn)
+NrUeMac::GetNrSlCandidateResourcesFromSlots (const SfnSf& sfn, uint16_t lSubCh, uint16_t totalSubCh, std::list <NrSlCommResourcePool::SlotInfo> slotInfo) const
 {
-  NS_LOG_FUNCTION (this << sfn.GetFrame() << +sfn.GetSubframe() << sfn.GetSlot ());
+  NS_LOG_FUNCTION (this << sfn.Normalize () << lSubCh << totalSubCh << slotInfo.size ());
 
-  //NR module supported candSsResoA list
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> nrCandSsResoA;
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> nrSupportedList;
+  for (const auto& it:slotInfo)
+    {
+      for (uint16_t i = 0; i + lSubCh <= totalSubCh; i++)
+        {
+          NrSlUeMacSchedSapProvider::NrSlSlotInfo info (it.numSlPscchRbs, it.slPscchSymStart,
+                                                        it.slPscchSymLength, it.slPsschSymStart,
+                                                        it.slPsschSymLength, it.slSubchannelSize,
+                                                        it.slMaxNumPerReserve,
+                                                        sfn.GetFutureSfnSf (it.slotOffset),
+                                                        i, lSubCh);
+          nrSupportedList.emplace_back (info);
+        }
+    }
 
-  std::list <NrSlCommResourcePool::SlotInfo> candSsResoA;// S_A as per TS 38.214
+  return nrSupportedList;
+}
+
+bool
+NrUeMac::OverlappedResource (uint8_t firstStart, uint8_t firstLength, uint8_t secondStart, uint8_t secondLength) const
+{
+  NS_ASSERT_MSG (firstLength && secondLength, "Length should not be zero");
+  if (std::max (firstStart, secondStart) < std::min (firstStart + firstLength, secondStart + secondLength))
+    {
+      return true;
+    }
+  else
+    {
+      return false;
+    }
+}
+
+void
+NrUeMac::ExcludeResourcesBasedOnHistory (const SfnSf& sfn, const std::list<SfnSf>& transmitHistory,
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candidateList,
+  const std::list<uint16_t>& slResourceReservePeriodList) const
+{
+  NS_LOG_FUNCTION (this << sfn.Normalize () << transmitHistory.size () << candidateList.size ()
+    << slResourceReservePeriodList.size ()); 
+
+  std::set<uint64_t> sfnToExclude; // SFN slot numbers (normalized) to exclude
+  uint64_t firstSfnNorm = candidateList.front ().sfn.Normalize (); // lowest candidate SFN slot number
+  uint64_t lastSfnNorm = candidateList.back ().sfn.Normalize (); // highest candidate SFN slot number
+  NS_LOG_DEBUG ("Excluding resources between normalized SFNs (" << firstSfnNorm << ":" << lastSfnNorm << ")");
+
+  // Iterate the resource reserve period list and the transmit history to
+  // find all slot numbers such that multiples of the reserve period, when
+  // added to the history's slot number, are within the candidate resource
+  // slots lowest and highest numbers
+  for (auto listIt : slResourceReservePeriodList)
+    {
+      if (listIt == 0) continue;  // 0ms value is ignored
+      listIt *= (1 << sfn.GetNumerology ());  // Convert from ms to slots
+      for (auto historyIt : transmitHistory)
+        {
+          uint16_t i = 1;
+          uint64_t sfnToCheck = (historyIt).Normalize () + (listIt);
+          while (sfnToCheck <= lastSfnNorm)
+            {
+              if (sfnToCheck >= firstSfnNorm)
+                {
+                  sfnToExclude.insert (sfnToCheck);
+                }
+              i++;
+              sfnToCheck = (historyIt).Normalize () + (i) * (listIt);
+            }
+        }
+    }
+  // sfnToExclude is a set of SFN normalized slot numbers for which we need
+  // to exclude (erase) any candidate resources that match
+  for (auto i : sfnToExclude)
+    {
+      auto itCand = candidateList.begin ();
+      while (itCand != candidateList.end ())
+        {
+          if ((*itCand).sfn.Normalize () == i)
+            {
+              NS_LOG_DEBUG ("Erasing candidate resource at " << i);
+              itCand = candidateList.erase (itCand);
+            }
+          else
+            {
+              itCand++;
+            }
+        }
+    }
+}
+
+std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
+NrUeMac::GetNrSlCandidateResources (const SfnSf& sfn, const NrSlTransmissionParams& params)
+{
+  return GetNrSlCandidateResourcesPrivate (sfn, params, m_slTxPool, m_nrSlUePhySapProvider->GetSlotPeriod (),
+    m_imsi, GetBwpId (), m_poolId, GetTotalSubCh (m_poolId), m_sensingData, m_transmitHistory);
+}
+
+std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
+NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmissionParams& params,
+  Ptr<const NrSlCommResourcePool> txPool, Time slotPeriod, uint64_t imsi, uint8_t bwpId,
+  uint16_t poolId, uint8_t totalSubCh, const std::list<SensingData>& sensingData,
+  const std::list<SfnSf>& transmitHistory) const
+{
+  NS_LOG_FUNCTION (this << sfn.GetFrame() << +sfn.GetSubframe() << sfn.GetSlot () << params << txPool
+   << slotPeriod << imsi << +bwpId << poolId << +totalSubCh);
+
+  SensingTraceReport report;  // for tracing
+  report.m_sfn = sfn;
+  report.m_t0 = txPool->GetNrSlSensWindInSlots (bwpId, poolId, slotPeriod);
+  report.m_tProc0 = m_tproc0;
+  report.m_t1 = m_t1;
+  report.m_t2 = m_t2;
+  report.m_subchannels = totalSubCh;
+  report.m_lSubch = params.m_lSubch;
+  report.m_resourcePercentage = GetResourcePercentage ();
+
+  NS_LOG_DEBUG ("Transmit  size: " << transmitHistory.size ()
+    << "; sensing data size: " << sensingData.size ());
+
+  // Input parameters (from params) are the priority, packet delay budget,
+  // number of subchannels, the RRI, and the C_resel
+  // - params.m_priority
+  // - params.m_packetDelayBudget
+  // - params.m_lSubch
+  // - params.m_pRsvpTx
+  // - params.m_cResel
+
+  // TR 38.214 Section 8.1.4, return the set 'S_A' (candidate single slot
+  // resources).  The size of this list is the algorithm parameter 'M_total'.
+
+  // In this code, the list of candidateSlots is taken from the resource pool,
+  // each SlotInfo doesn't have a list of subchannel (indices).
+  // The NrUeMac copies each resource to the candidateResources list,
+  // the only difference being that this NrSlUeMacSchedSapProvider::NrSlSlotInfo
+  // exists at the mac/scheduler API.  Consolidating these two nearly
+  // identical structures could be a topic of future work.
+
+  // Probably what is needed is that the list of all candidate resources
+  // should be passed from nr-sl-comm-resource-pool to begin with.
+
+  std::list <NrSlCommResourcePool::SlotInfo> candidateSlots; // candidate single slots
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> candidateResources;// S_A as per TS 38.214
+
   uint64_t absSlotIndex = sfn.Normalize ();
-  uint8_t bwpId = GetBwpId ();
   uint16_t numerology = sfn.GetNumerology ();
 
+  //Check the validity of the resource selection window configuration (T1 and T2) 
+  //and the following parameters: numerology and reservation period.
+  uint16_t nsMs = (m_t2-m_t1+1) * (1 / pow(2,numerology)); // number of slots mutiplied by the slot duration in ms
+  uint16_t rsvpMs = static_cast <uint16_t> (params.m_pRsvpTx.GetMilliSeconds ()); // reservation period in ms
+  NS_ABORT_MSG_IF (nsMs > rsvpMs, 
+      "An error may be generated due to the fact that the resource selection window size is higher than the resource reservation period value. Make sure that (T2-T1+1) x (1/(2^numerology)) < reservation period. Modify the values of T1, T2, numerology, and reservation period accordingly.");
+
   //step 4 as per TS 38.214 sec 8.1.4
-  auto allTxOpps = m_slTxPool->GetNrSlCommOpportunities (absSlotIndex, bwpId, numerology, GetSlActivePoolId (), m_t1, m_t2);
-  if (allTxOpps.size () == 0)
+  candidateSlots = txPool->GetNrSlCommOpportunities (absSlotIndex, bwpId, numerology, poolId, m_t1, m_t2);
+  report.m_initialCandidateSlotsSize = candidateSlots.size ();
+  if (candidateSlots.size () == 0)
     {
       //Since, all the parameters (i.e., T1, T2min, and T2) of the selection
       //window are in terms of physical slots, it may happen that there are no
       //slots available for Sidelink, which depends on the TDD pattern and the
       //Sidelink bitmap.
-      return GetNrSupportedList (sfn, allTxOpps);
+      return GetNrSlCandidateResourcesFromSlots (sfn, params.m_lSubch, totalSubCh, candidateSlots);
     }
-  candSsResoA = allTxOpps;
-  uint32_t mTotal = candSsResoA.size (); // total number of candidate single-slot resources
-  int rsrpThrehold = GetSlThresPsschRsrp ();
 
-  if (m_enableSensing)
+  candidateResources = GetNrSlCandidateResourcesFromSlots (sfn, params.m_lSubch, totalSubCh, candidateSlots);
+  uint32_t mTotal = candidateResources.size (); // total number of candidate single-slot resources
+  report.m_initialCandidateResourcesSize = mTotal;
+  if (!m_enableSensing)
     {
-      if (m_sensingData.size () == 0)
+      NS_LOG_DEBUG ("No sensing: Total slots selected " << mTotal);
+      return candidateResources;
+    }
+
+  // This is an optimization to skip further null processing below
+  if (m_enableSensing && !sensingData.size () && !transmitHistory.size ())
+    {
+      NS_LOG_DEBUG ("No sensing or  data found: Total slots selected " << mTotal);
+      return candidateResources;
+    }
+
+  //Copy the buffer so we can trim the buffer as per Tproc0.
+  //Note, we do not need to delete the latest measurement
+  //from the original buffer because it will be deleted
+  //by RemoveOldSensingData method once it is outdated.
+
+  auto updatedSensingData = sensingData;
+
+  //latest sensing data is at the end of the list
+  //now remove the latest sensing data as per the value of Tproc0. This would
+  //keep the size of the buffer equal to [n – T0 , n – Tproc0)
+
+  auto rvIt = updatedSensingData.crbegin ();
+  if (rvIt != updatedSensingData.crend ())
+    {
+      while (sfn.Normalize () - rvIt->sfn.Normalize () <= GetTproc0 ())
         {
-          //no sensing
-          nrCandSsResoA = GetNrSupportedList (sfn, candSsResoA);
-          return nrCandSsResoA;
+          NS_LOG_DEBUG ("IMSI " << m_imsi << " ignoring sensed SCI at sfn " << sfn << " received at " << rvIt->sfn);
+          updatedSensingData.pop_back ();
+          rvIt = updatedSensingData.crbegin ();
         }
+    }
 
-      //Copy the buffer so we can trim the buffer as per Tproc0.
-      //Note, we do not need to delete the latest measurement
-      //from the original buffer because it will be deleted
-      //by UpdateSensingWindow method once it is outdated.
+  // Perform a similar operation on the transmit .
+  // latest  is at the end of the list
+  // keep the size of the buffer equal to [n – T0 , n – Tproc0)
+  auto updatedHistory = transmitHistory;
 
-      auto sensedData = m_sensingData;
-
-      //latest sensing data is at the end of the list
-      //now remove the latest sensing data as per the value of Tproc0. This would
-      //keep the size of the buffer equal to [n – T0 , n – Tproc0)
-
-      auto rvIt = sensedData.crbegin ();
-      if (rvIt != sensedData.crend ())
+  auto rvIt2 = updatedHistory.crbegin ();
+  if (rvIt2 != updatedHistory.crend ())
+    {
+      while (sfn.Normalize () - rvIt2->Normalize () <= GetTproc0 ())
         {
-          while (sfn.Normalize () - rvIt->sfn.Normalize () <= GetTproc0 ())
+          NS_LOG_DEBUG ("IMSI " << m_imsi << " ignoring  at sfn " << sfn << " received at " << *rvIt2);
+          updatedHistory.pop_back ();
+          rvIt2 = updatedHistory.crbegin ();
+        }
+    }
+
+  // step 5: filter candidateResources based on transmit history, if threshold
+  // defined in step 5a) is met
+  auto candidatesToCheck = candidateResources;
+  ExcludeResourcesBasedOnHistory (sfn, updatedHistory, candidatesToCheck, txPool->GetSlResourceReservePeriodList (bwpId, poolId));
+  if (candidatesToCheck.size () >= (GetResourcePercentage () / 100.0) * mTotal)
+    {
+      NS_LOG_DEBUG ("Step 5 filter results: original: " << candidateResources.size ()
+        << " updated: " << candidatesToCheck.size () << " X: " << GetResourcePercentage ()/ 100.0);
+      candidateResources = candidatesToCheck;
+    }
+  report.m_candidateResourcesSizeAfterStep5 = candidateResources.size ();
+
+  //step 6
+
+  // calculate all possible transmissions based on sensed SCIs,
+  // with past transmissions projected into the selection window.
+  // Using a vector of SlotSensingData, since we need to check all the SCIs
+  // and their possible future transmission that are received during the
+  // above trimmed sensing window. Each element of the vector holds a
+  // list that holds the info of each received SCI and its possible
+  // future transmissions.
+  std::vector<std::list<SlotSensingData>> sensingDataProjections;
+  for (const auto &itSensedSlot:updatedSensingData)
+    {
+      uint16_t resvPeriodSlots = txPool->GetResvPeriodInSlots (bwpId, poolId, MilliSeconds (itSensedSlot.rsvp), slotPeriod);
+      std::list<SlotSensingData> listFutureSensTx = GetFutSlotsBasedOnSens (itSensedSlot, slotPeriod, resvPeriodSlots);
+      sensingDataProjections.push_back (listFutureSensTx);
+    }
+
+  NS_LOG_DEBUG ("Size of sensingDataProjections outer vector: " << sensingDataProjections.size ());
+
+  int rsrpThreshold = m_thresRsrp;
+  report.m_initialRsrpThreshold = m_thresRsrp;
+  do
+    {
+      //following assignment is needed since we might have to perform
+      //multiple do-while over the same list by increasing the rsrpThreshold
+      candidateResources = candidatesToCheck;
+      NS_LOG_DEBUG ("Step 6 loop iteration checking " << candidateResources.size () << " resources against threshold " << rsrpThreshold);
+      auto itCandidate = candidateResources.begin ();
+      // itCandidate is the candidate single-slot resource R_x,y
+      while (itCandidate != candidateResources.end ())
+        {
+          bool erased = false;
+          // calculate all proposed transmissions of current candidate resource within selection window
+          std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> listFutureCands;
+          uint16_t pPrimeRsvpTx = txPool->GetResvPeriodInSlots (bwpId,
+                                                                    poolId,
+                                                                    params.m_pRsvpTx,
+                                                                    slotPeriod);
+          for (uint16_t i = 0; i < params.m_cResel; i++)
             {
-              NS_LOG_DEBUG ("IMSI " << m_imsi << " ignoring sensed SCI at sfn " << sfn << " received at " << rvIt->sfn);
-              sensedData.pop_back ();
-              rvIt = sensedData.crbegin ();
-            }
-        }
-
-      // calculate all possible transmissions of sensed data
-      //using unordered map, since we need to check all the sensed slots
-      //anyway, thus, the order does not matter.
-      std::unordered_map<uint64_t, std::list<SlotSensingData>> allSensingData;
-      for (const auto &itSensedSlot:sensedData)
-        {
-          std::list<SlotSensingData> listFutureSensTx = GetFutSlotsBasedOnSens (itSensedSlot);
-          allSensingData.emplace (std::make_pair (itSensedSlot.sfn.GetEncoding (), listFutureSensTx));
-        }
-
-      NS_LOG_DEBUG ("Size of allSensingData " << allSensingData.size ());
-
-      //Step 5
-
-      //Trim unmonitored slots data to fit in selection window
-      //Here we trim newest data (t > n – Tproc0), the oldest data is trimmed
-      //in the UpdateSensingWindow function
-      auto unmonSlotsData = m_nrSlUnmonSlotsData;
-      auto rvIt2 = unmonSlotsData.crbegin ();
-      if (rvIt2 != unmonSlotsData.crend ())
-        {
-          while (sfn.Normalize () - rvIt2->sfn.Normalize () <= GetTproc0 ())
-            {
-              NS_LOG_DEBUG ("IMSI " << m_imsi << " ignoring unmonitored slot (out of sensing window) at sfn " << sfn
-                            << " received at " << rvIt2->sfn);
-              unmonSlotsData.pop_back ();
-              rvIt2 = unmonSlotsData.crbegin ();
-            }
-        }
-
-      //Calculate all proposed transmissions of the unmonitored slots (bullet 2 of step 5 of TS 38.214 Section 8.1.4)
-      std::unordered_map<uint64_t, std::list<SlotSensingData>> allUnmonitoredData;
-      for (const auto &itUnmonSlot : unmonSlotsData)
-        {
-          std::list<SlotSensingData> listFutureUnmonTx = GetFutSlotsBasedOnSens (itUnmonSlot);
-          allUnmonitoredData.emplace (std::make_pair (itUnmonSlot.sfn.GetEncoding (), listFutureUnmonTx));
-        }
-      NS_LOG_DEBUG ("Size of allUnmonitoredData " << allUnmonitoredData.size ());
-      //Exclude them from candidate resources
-      //This is a based on the traversing done for sensing data in step 6.
-      auto candSsResoTmp = allTxOpps;
-      auto nrCandSsResoTmp = GetNrSupportedList (sfn, candSsResoTmp);
-      auto itCandSsResoTmp = nrCandSsResoTmp.begin ();
-      while (itCandSsResoTmp != nrCandSsResoTmp.end ())
-        {
-          // calculate all proposed transmissions of current candidate resource
-          std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> listFutureCandsTmp;
-          uint16_t pPrimeRsvpTx = m_slTxPool->GetResvPeriodInSlots (GetBwpId (),
-                                                                    m_poolId,
-                                                                    m_pRsvpTx,
-                                                                    m_nrSlUePhySapProvider->GetSlotPeriod ());
-          for (uint16_t i = 0; i < m_cResel; i++)
-            {
-              auto slAlloc = *itCandSsResoTmp;
+              auto slAlloc = *itCandidate;
               slAlloc.sfn.Add (i * pPrimeRsvpTx);
-              listFutureCandsTmp.emplace_back (slAlloc);
+              listFutureCands.emplace_back (slAlloc);
             }
-          // Traverse over all the possible transmissions of each unmonitored slot
-          for (const auto &itUnmonSlot : allUnmonitoredData)
+          // Traverse over all the possible transmissions of each sensed SCI
+          for (const auto &itSensingDataProjections : sensingDataProjections)
             {
-              std::list<SlotSensingData> listFutureUnmonTx = itUnmonSlot.second;
               // for all proposed transmissions of current candidate resource
-              for (auto &itFutureCandTmp : listFutureCandsTmp)
+              for (auto &itFutureCand : listFutureCands)
                 {
-                  //for all future transmissions of each unmonitored slot
-                  for (const auto &itFutureUnmonTx : listFutureUnmonTx)
+                  // Traverse the list of future projected transmissions for the given sensed SCI
+                  for (const auto &itSlotSensingDataProjection : itSensingDataProjections)
                     {
-                      if (itFutureCandTmp.sfn.Normalize () == itFutureUnmonTx.sfn.Normalize ())
+                      if (itFutureCand.sfn.Normalize () == itSlotSensingDataProjection.sfn.Normalize ())
                         {
-                          itCandSsResoTmp = nrCandSsResoTmp.erase (itCandSsResoTmp);
-                          NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded unmonitored slot at sfn " << itFutureCandTmp.sfn);
-                        }
-                    }
-                }
-            }
-          itCandSsResoTmp++;
-        }
-
-      NS_LOG_DEBUG ("IMSI " << m_imsi << " excluded " << mTotal - nrCandSsResoTmp.size () << " unmonitored resources ");
-
-      //step 5a
-      if (nrCandSsResoTmp.size () < (GetResourcePercentage () / 100.0) * mTotal)
-       {
-          NS_LOG_DEBUG ("The number of candidate resources is smaller than X * mTotal. Reverting unmonitored resources exclusion (step 5a)");
-          nrCandSsResoTmp = GetNrSupportedList (sfn, candSsResoTmp);
-       }
-      NS_LOG_DEBUG (nrCandSsResoTmp.size () << " slots selected after unmonitored resource exclusion from " << mTotal << " slots");
-
-
-      //step 6
-      do
-        {
-          //following assignment is needed since we might have to perform
-          //multiple do-while over the same list by increasing the rsrpThreshold
-          nrCandSsResoA = nrCandSsResoTmp;
-          auto itCandSsResoA = nrCandSsResoA.begin ();
-          while (itCandSsResoA != nrCandSsResoA.end ())
-            {
-              bool erased = false;
-              // calculate all proposed transmissions of current candidate resource
-              std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> listFutureCands;
-              uint16_t pPrimeRsvpTx = m_slTxPool->GetResvPeriodInSlots (GetBwpId (),
-                                                                        m_poolId,
-                                                                        m_pRsvpTx,
-                                                                        m_nrSlUePhySapProvider->GetSlotPeriod ());
-              for (uint16_t i = 0; i < m_cResel; i++)
-                {
-                  auto slAlloc = *itCandSsResoA;
-                  slAlloc.sfn.Add (i * pPrimeRsvpTx);
-                  listFutureCands.emplace_back (slAlloc);
-                }
-              // Traverse over all the possible transmissions of each sensed slot
-              for (const auto &itSensedSlot:allSensingData)
-                {
-                  std::list<SlotSensingData> listFutureSensTx = itSensedSlot.second;
-                  // for all proposed transmissions of current candidate resource
-                  for (auto &itFutureCand:listFutureCands)
-                    {
-                      for (const auto &itFutureSensTx:listFutureSensTx)
-                        {
-                          if (itFutureCand.sfn.Normalize () == itFutureSensTx.sfn.Normalize ())
+                          if (itSlotSensingDataProjection.slRsrp > rsrpThreshold)
                             {
-                              uint16_t lastSbChInPlusOne = itFutureSensTx.sbChStart + itFutureSensTx.sbChLength;
-                              for (uint8_t i = itFutureSensTx.sbChStart; i < lastSbChInPlusOne; i++)
+                              if (OverlappedResource (itSlotSensingDataProjection.sbChStart, itSlotSensingDataProjection.sbChLength, itCandidate->slSubchannelStart, itCandidate->slSubchannelLength))
                                 {
-                                  NS_LOG_DEBUG (this << " Overlapped Slot " << itCandSsResoA->sfn.Normalize () << " occupied " << +itFutureSensTx.sbChLength << " subchannels index " << +itFutureSensTx.sbChStart);
-                                  itCandSsResoA->occupiedSbCh.insert (i);
-                                }
-                              if (itFutureSensTx.sbChLength == GetTotalSubCh (m_poolId))
-                                {
-                                  if(itFutureSensTx.slRsrp > rsrpThrehold)
-                                    {
-                                      itCandSsResoA = nrCandSsResoA.erase (itCandSsResoA);
-                                      erased = true;
-                                      NS_LOG_DEBUG ("Absolute slot number " << itFutureCand.sfn.Normalize () << " erased. Its rsrp : " << itFutureSensTx.slRsrp << " Threshold : " << rsrpThrehold);
-                                      //stop traversing over sensing data as we have
-                                      //already found the slot to exclude.
-                                      break; // break for (const auto &itFutureSensTx:listFutureSensTx)
-                                    }
+                                  NS_LOG_DEBUG ("Overlapped resource " << itCandidate->sfn.Normalize () << " occupied " << +itSlotSensingDataProjection.sbChLength << " subchannels index " << +itSlotSensingDataProjection.sbChStart);
+                                  itCandidate = candidateResources.erase (itCandidate);
+                                  NS_LOG_DEBUG ("Resource " << itCandidate->sfn.Normalize () << ":[" << itCandidate->slSubchannelStart << "," << (itCandidate->slSubchannelStart + itCandidate->slSubchannelLength - 1) << "] erased. Its rsrp : " << itSlotSensingDataProjection.slRsrp << " Threshold : " << rsrpThreshold);
+                                  erased = true;  // Used to break out of outer for loop of sensed data projections 
+                                  break;  // Stop further evaluation because candidate is erased
                                 }
                             }
                         }
-                      if (erased)
-                        {
-                          break; // break for (const auto &itFutureCand:listFutureCands)
-                        }
-                    }
-                  if (erased)
-                    {
-                      break; // break for (const auto &itSensedSlot:allSensingData)
                     }
                 }
-              if (!erased)
+              if (erased)
                 {
-                  itCandSsResoA++;
+                  break; // break for itSensingDataProjections
                 }
             }
-          //step 7. If the following while will not break, start over do-while
-          //loop with rsrpThreshold increased by 3dB
-          rsrpThrehold += 3;
-          if (rsrpThrehold > 0)
+          if (!erased)
             {
-              //0 dBm is the maximum RSRP threshold level so if we reach
-              //it, that means all the available slots are overlapping
-              //in time and frequency with the sensed slots, and the
-              //RSRP of the sensed slots is very high.
-              NS_LOG_DEBUG ("Reached maximum RSRP threshold, unable to select resources");
-              nrCandSsResoA.erase (nrCandSsResoA.begin (), nrCandSsResoA.end ());
-              break; //break do while
+              // Only need to increment if not erased above; if erased, the erase()
+              // action will point itCandidate to the next item
+              itCandidate++;
             }
         }
-      while (nrCandSsResoA.size () < (GetResourcePercentage () / 100.0) * mTotal);
-
-      NS_LOG_DEBUG (nrCandSsResoA.size () << " slots selected after sensing resource selection from " << mTotal << " slots");
+      //step 7. If the following while will not break, start over do-while
+      //loop with rsrpThreshold increased by 3dB
+      rsrpThreshold += 3;
+      if (rsrpThreshold > 0)
+        {
+          //0 dBm is the maximum RSRP threshold level so if we reach
+          //it, that means all the available slots are overlapping
+          //in time and frequency with the sensed slots, and the
+          //RSRP of the sensed slots is very high.
+          NS_LOG_DEBUG ("Reached maximum RSRP threshold, unable to select resources");
+          candidateResources.erase (candidateResources.begin (), candidateResources.end ());
+          break; //break do while
+        }
     }
-  else
-    {
-      //no sensing
-      nrCandSsResoA = GetNrSupportedList (sfn, candSsResoA);
-      NS_LOG_DEBUG ("No sensing: Total slots selected " << nrCandSsResoA.size ());
-    }
+  while (candidateResources.size () < (GetResourcePercentage () / 100.0) * mTotal);
 
-  return nrCandSsResoA;
+  NS_LOG_DEBUG (candidateResources.size () << " slots selected after sensing resource selection from " << mTotal << " slots");
+
+  report.m_finalRsrpThreshold = (rsrpThreshold - 3); // undo the last increment
+  m_tracedSensingAlgorithm (report, candidateResources, updatedSensingData, updatedHistory);
+  return candidateResources;
 }
 
-std::list<SlotSensingData>
-NrUeMac::GetFutSlotsBasedOnSens (SensingData sensedData)
+uint16_t
+NrUeMac::GetResvPeriodInSlots (Time resvPeriod) const
 {
-  NS_LOG_FUNCTION (this);
+  // The following ValidateResvPeriod() method was moved here from the
+  // SetReservationPeriod() method.  The code no longer configures the RRI
+  // for the MAC as a whole, but sets it on a per-LC basis.  This checks that
+  // only the standard compliant values, including their intermediate values
+  // could be set. TS38.321 sec 5.22.1.1 instructs to select one of the
+  // allowed values configured by RRC in sl-ResourceReservePeriodList and
+  // set the resource reservation interval with the selected value.
+  // Also, this method checks that the reservation period is a multiple of
+  // the length of the physical sidelink pool (i.e., the resultant bitmap
+  // after applying SL bitmap over the TDD pattern).
+  m_slTxPool->ValidateResvPeriod (GetBwpId (), m_poolId, resvPeriod, m_nrSlUePhySapProvider->GetSlotPeriod ());
+  return m_slTxPool->GetResvPeriodInSlots (GetBwpId (), m_poolId, resvPeriod, m_nrSlUePhySapProvider->GetSlotPeriod ());
+}
+
+uint16_t
+NrUeMac::GetNrSlSubChSize () const
+{
+  return m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
+}
+
+uint16_t
+NrUeMac::GetNrSlPsschSymbolsPerSlot () const
+{
+  return m_slTxPool->GetPsschSymbolsPerSlot (GetBwpId (), m_poolId);
+}
+
+// Calculates parameters including Q for step 6(c) of sensing algorithm
+std::list<SlotSensingData>
+NrUeMac::GetFutSlotsBasedOnSens (SensingData sensedData, Time slotPeriod, uint16_t resvPeriodSlots) const
+{
+  NS_LOG_FUNCTION (this << sensedData.sfn.Normalize () << slotPeriod << resvPeriodSlots);
   std::list<SlotSensingData> listFutureSensTx;
 
-  double slotLenMiSec = m_nrSlUePhySapProvider->GetSlotPeriod ().GetSeconds () * 1000.0;
+  double slotLenMiSec = slotPeriod.GetSeconds () * 1000.0;
   NS_ABORT_MSG_IF (slotLenMiSec > 1, "Slot length can not exceed 1 ms");
   uint16_t selecWindLen = (m_t2 - m_t1) + 1; //selection window length in physical slots
   double tScalMilSec = selecWindLen * slotLenMiSec;
   double pRsvpRxMilSec = static_cast<double> (sensedData.rsvp);
   uint16_t q = 0;
-  //I am aware that two double variable are compared. I don't expect these two
-  //numbers to be big floating-point numbers.
-  if (pRsvpRxMilSec < tScalMilSec)
+  if (sensedData.rsvp != 0)
     {
-      q = static_cast <uint16_t> (std::ceil (tScalMilSec / pRsvpRxMilSec));
+      //I am aware that two double variable are compared. I don't expect these two
+      //numbers to be big floating-point numbers.
+      if (pRsvpRxMilSec < tScalMilSec)
+        {
+          q = static_cast <uint16_t> (std::ceil (tScalMilSec / pRsvpRxMilSec));
+        }
+      else
+        {
+          q = 1;
+        }
+      NS_LOG_DEBUG ("tScalMilSec: " << tScalMilSec << " pRsvpRxMilSec: " << pRsvpRxMilSec);
+
     }
-  else
-    {
-      q = 1;
-    }
-  uint16_t pPrimeRsvpRx = m_slTxPool->GetResvPeriodInSlots (GetBwpId (),
-                                                            m_poolId,
-                                                            MilliSeconds (sensedData.rsvp),
-                                                            m_nrSlUePhySapProvider->GetSlotPeriod ());
+  uint16_t pPrimeRsvpRx = resvPeriodSlots;
 
   for (uint16_t i = 0; i <= q; i++)
     {
@@ -1542,6 +1696,7 @@ NrUeMac::GetFutSlotsBasedOnSens (SensingData sensedData)
           listFutureSensTx.emplace_back (reTx2Slot);
         }
     }
+  NS_LOG_DEBUG ("q: " << q << " Size of listFutureSensTx: " << listFutureSensTx.size ());
 
   return listFutureSensTx;
 }
@@ -1554,13 +1709,12 @@ NrUeMac::GetNrSupportedList (const SfnSf& sfn, std::list <NrSlCommResourcePool::
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> nrSupportedList;
   for (const auto& it:slotInfo)
     {
-      std::set <uint8_t> emptySet;
       NrSlUeMacSchedSapProvider::NrSlSlotInfo info (it.numSlPscchRbs, it.slPscchSymStart,
                                                     it.slPscchSymLength, it.slPsschSymStart,
                                                     it.slPsschSymLength, it.slSubchannelSize,
                                                     it.slMaxNumPerReserve,
                                                     sfn.GetFutureSfnSf (it.slotOffset),
-                                                    emptySet);
+                                                    0, 0);
       nrSupportedList.emplace_back (info);
     }
 
@@ -1605,21 +1759,18 @@ NrUeMac::DoNotifyUnmonitoredSlot (SfnSf unmonitoredSlot)
 }
 
 void
-NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
+NrUeMac::RemoveOldSensingData (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi) 
 {
-  NS_LOG_FUNCTION (this << sfn);
+  NS_LOG_FUNCTION (this << sfn << sensingWindow << sensingData.size () << imsi);
 
-  uint16_t sensWindLen = m_slTxPool->GetNrSlSensWindInSlots (GetBwpId (),
-                                                             m_poolId,
-                                                             m_nrSlUePhySapProvider->GetSlotPeriod ());
   //oldest sensing data is on the top of the list
-  auto it = m_sensingData.cbegin();
-  while (it != m_sensingData.cend ())
+  auto it = sensingData.cbegin();
+  while (it != sensingData.cend ())
     {
-      if (it->sfn.Normalize () < sfn.Normalize () - sensWindLen)
+      if (it->sfn.Normalize () < sfn.Normalize () - sensingWindow)
         {
-          NS_LOG_DEBUG ("IMSI " << m_imsi << " erasing SCI at sfn " << sfn << " received at " << it->sfn);
-          it = m_sensingData.erase (it);
+          NS_LOG_DEBUG ("IMSI " << imsi << " erasing SCI at sfn " << sfn << " received at " << it->sfn);
+          it = sensingData.erase (it);
         }
       else
         {
@@ -1630,7 +1781,12 @@ NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
         }
       ++it;
     }
+}
 
+void
+NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
+{
+  NS_LOG_FUNCTION (this << sfn);
   //To keep the size of the buffer equal to [n – T0 , n – Tproc0)
   //the other end of sensing buffer is trimmed in GetNrSlTxOpportunities.
 
@@ -1656,6 +1812,27 @@ NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
     }
 }
 
+void
+NrUeMac::RemoveOldTransmitHistory (const SfnSf& sfn, uint16_t sensingWindow, std::list<SfnSf>& history, [[maybe_unused]] uint64_t imsi) 
+{
+  NS_LOG_FUNCTION (this << sfn << sensingWindow << history.size () << imsi);
+
+  auto it = history.cbegin();
+  while (it != history.cend ())
+    {
+      if (it->Normalize () < sfn.Normalize () - sensingWindow)
+        {
+          NS_LOG_DEBUG ("IMSI " << imsi << " erasing SFN history at sfn " << sfn << " sent at " << *it);
+          it = history.erase (it);
+        }
+      else
+        {
+          //break upon reaching the edge of the sensing window
+          break;
+        }
+      ++it;
+    }
+}
 
 void
 NrUeMac::DoReceivePsschPhyPdu (Ptr<PacketBurst> pdu)
@@ -1737,152 +1914,45 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
   NS_LOG_FUNCTION (this << " Frame " << sfn.GetFrame() << " Subframe " << +sfn.GetSubframe()
                         << " slot " << sfn.GetSlot () << " Normalized slot number " << sfn.Normalize ());
 
-  UpdateSensingWindow (sfn);
-
-  if (m_slTxPool->GetNrSlSchedulingType () == NrSlCommResourcePool::SCHEDULED)
-    {
-
-    }
-  else if (m_slTxPool->GetNrSlSchedulingType () == NrSlCommResourcePool::UE_SELECTED)
-    {
-      //Do not ask for resources if no HARQ/Sidelink process is available
-      if (m_nrSlHarq->GetNumAvaiableHarqIds () > 0)
-        {
-          for (const auto &itDst : m_sidelinkTxDestinations)
-            {
-              const auto itGrantInfo = m_grantInfo.find (itDst.first);
-              bool foundDest = itGrantInfo != m_grantInfo.end () ? true : false;
-              if (foundDest)
-                {
-                  //If the re-selection counter of the found destination is not zero,
-                  //it means it already have resources assigned to it via semi-persistent
-                  //scheduling, thus, we go to the next destination
-                  if (itGrantInfo->second.slResoReselCounter != 0)
-                    {
-                      NS_LOG_INFO ("Destination " << itDst.first << " already have the allocation, scheduling the next destination, if any");
-                      continue;
-                    }
-
-                  uint32_t randProb = m_ueSelectedUniformVariable->GetInteger (0, 1);
-                  if (itGrantInfo->second.cReselCounter > 0 &&
-                      itGrantInfo->second.slotAllocations.size () > 0 && m_slProbResourceKeep > randProb)
-                    {
-                      NS_LOG_INFO ("IMSI " << m_imsi << " keeping the resource for " << itDst.first);
-                      NS_ASSERT_MSG (itGrantInfo->second.slResoReselCounter == 0, "Sidelink resource re-selection counter must be zero before continuing with the same grant for dst " << itDst.first);
-                      //keeping the resource, reassign the same sidelink resource re-selection
-                      //counter we chose while creating the fresh grant
-                      itGrantInfo->second.slResoReselCounter = itGrantInfo->second.prevSlResoReselCounter;
-                      continue;
-                    }
-                  else
-                    {
-                      //we need to choose new resource so erase the previous allocations
-                      NS_LOG_DEBUG ("Choosing new resources : ResoReselCounter "
-                                    << +itGrantInfo->second.slResoReselCounter
-                                    << " cResel " << itGrantInfo->second.cReselCounter
-                                    << " remaining alloc " << itGrantInfo->second.slotAllocations.size ()
-                                    << " slProbResourceKeep " << +m_slProbResourceKeep
-                                    << " random prob " << randProb);
-                      itGrantInfo->second.slotAllocations.erase (itGrantInfo->second.slotAllocations.begin (), itGrantInfo->second.slotAllocations.end ());
-                    }
-                }
-
-              m_reselCounter = GetRndmReselectionCounter ();
-              m_cResel = m_reselCounter * 10;
-              NS_LOG_DEBUG ("Resel Counter " << +m_reselCounter << " cResel " << m_cResel);
-              std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> availableReso = GetNrSlTxOpportunities (sfn);
-              //sensing or not, due to the semi-persistent scheduling, after
-              //calling the GetNrSlTxOpportunities method, and before asking the
-              //scheduler for resources, we need to remove those available slots,
-              //which are already part of the existing grant. When sensing is
-              //activated this step corresponds to step 2 in TS 38.214 sec 8.1.4
-              //Remember, availableReso itself can be an empty list, we do not need
-              //another if here because FilterTxOpportunities will return an empty
-              //list.
-              auto filteredReso = FilterTxOpportunities (availableReso);
-              if (!filteredReso.empty ())
-                {
-                  //we ask the scheduler for resources only if the filtered list is not empty.
-                  NS_LOG_INFO ("IMSI " << m_imsi << " scheduling the destination " << itDst.first);
-                  m_nrSlUeMacSchedSapProvider->SchedUeNrSlTriggerReq (itDst.first, filteredReso);
-                  m_reselCounter = 0;
-                  m_cResel = 0;
-                }
-              else
-                {
-                  NS_LOG_DEBUG ("Do not have enough slots to allocate. Not calling the scheduler for dst " << itDst.first);
-                  m_reselCounter = 0;
-                  m_cResel = 0;
-                }
-            }
-        }
-    }
-  else
-    {
-      NS_FATAL_ERROR ("Scheduling type " << m_slTxPool->GetNrSlSchedulingType () << " for NR Sidelink pools is unknown");
-    }
-
+  bool atLeastOneTransmissionInSlot = false;
   //check if we need to transmit PSCCH + PSSCH
   //We are starting with the transmission of data packets because if the buffer
   //at the RLC would be empty we just erase the grant of the current slot
   //without transmitting SCI 1 and SCI 2 message, and data. Therefore,
   //even we had the grant we will not put anything in the queues at the PHY.
-  for (auto & itGrantInfo : m_grantInfo)
+  for (auto &itGrant : m_slGrants)
     {
-      if (itGrantInfo.second.slResoReselCounter != 0 && itGrantInfo.second.slotAllocations.begin ()->sfn == sfn)
+      if (itGrant.second.empty ())
         {
-          auto grantIt = itGrantInfo.second.slotAllocations.begin ();
-          NrSlSlotAlloc currentGrant = *grantIt;
-          //remove the allocation since we already used it
-          itGrantInfo.second.slotAllocations.erase (grantIt);
-          NS_LOG_INFO ("Grant at : Frame = " << currentGrant.sfn.GetFrame ()
-                       << " SF = " << +currentGrant.sfn.GetSubframe ()
-                       << " slot = " << currentGrant.sfn.GetSlot ());
-
-          uint32_t tbSize = 0;
-          //sum all the assigned bytes to each LC of this destination
-          for (const auto & it : currentGrant.slRlcPduInfo)
+          continue;
+        }
+      NrSlUeMacSchedSapUser::NrSlGrant currentGrant = itGrant.second.front ();
+      auto currentSlotIt = itGrant.second.front ().slotAllocations.begin ();
+      NrSlSlotAlloc currentSlot = *currentSlotIt;
+      if (currentGrant.slotAllocations.begin ()->sfn == sfn)
+        {
+          // Remove current slot allocation from this grant
+          itGrant.second.front ().slotAllocations.erase (currentSlotIt);
+          NS_LOG_INFO ("Grant at : Frame = " << currentSlot.sfn.GetFrame ()
+                       << " SF = " << +currentSlot.sfn.GetSubframe ()
+                       << " slot = " << currentSlot.sfn.GetSlot ());
+          if (currentSlot.ndi)
             {
-              NS_LOG_DEBUG ("LC " << static_cast <uint16_t> (it.lcid) << " was assigned " << it.size << "bytes");
-              tbSize += it.size;
-            }
-
-          if (currentGrant.ndi)
-            {
-              itGrantInfo.second.tbTxCounter = 1;
-              for (const auto & itLcRlcPduInfo : currentGrant.slRlcPduInfo)
+              Ptr<PacketBurst> pb = CreateObject <PacketBurst> ();
+              pb = m_nrSlHarq->GetPacketBurst (currentSlot.dstL2Id, currentGrant.nrSlHarqId);
+              if (pb->GetNPackets () > 0)
                 {
-                  SidelinkLcIdentifier slLcId;
-                  slLcId.lcId = itLcRlcPduInfo.lcid;
-                  slLcId.srcL2Id = m_srcL2Id;
-                  slLcId.dstL2Id = currentGrant.dstL2Id;
-                  const auto & itLc = m_nrSlLcInfoMap.find (slLcId);
-                  NS_ASSERT_MSG (itLc != m_nrSlLcInfoMap.end (), "No LC with id " << +itLcRlcPduInfo.lcid << " found for destination " << currentGrant.dstL2Id);
-                  //Assign HARQ id and store it in the grant
-                  //Side effect, if RLC buffer would be empty, the assigned
-                  //HARQ id will be occupied until all the grants for this slot
-                  //and it ReTxs are exhausted.
-                  uint8_t nrSlHarqId {std::numeric_limits <uint8_t>::max ()};
-                  nrSlHarqId = m_nrSlHarq->AssignNrSlHarqProcessId (currentGrant.dstL2Id);
-                  itGrantInfo.second.nrSlHarqId = nrSlHarqId;
-                  NS_ASSERT_MSG (itGrantInfo.second.nrSlHarqId != std::numeric_limits <uint8_t>::max (), "HARQ id was not assigned for destination " << currentGrant.dstL2Id);
-                  NS_LOG_DEBUG ("Notifying NR SL RLC of TX opportunity for LC id " << +itLcRlcPduInfo.lcid << " for TB size " << itLcRlcPduInfo.size);
-                  itLc->second.macSapUser->NotifyNrSlTxOpportunity (NrSlMacSapUser::NrSlTxOpportunityParameters (itLcRlcPduInfo.size, m_rnti, itLcRlcPduInfo.lcid,
-                                                                                                                 0, itGrantInfo.second.nrSlHarqId, GetBwpId (),
-                                                                                                                 m_srcL2Id, currentGrant.dstL2Id));
+                  m_nrSlMacPduTxed = true;
+                  NS_ASSERT_MSG (pb->GetNPackets () > 0, "Packet burst for HARQ id " << +currentGrant.nrSlHarqId << " is empty");
+                  for (const auto & itPkt : pb->GetPackets ())
+                    {
+                      NS_LOG_DEBUG ("Sending PSSCH MAC PDU (1st Tx) dstL2Id: " << currentSlot.dstL2Id
+                                    << " lcId: " << +currentSlot.lcId << " harqId: " << +currentGrant.nrSlHarqId
+                                    << " Packet Size: " << itPkt->GetSize ());
+                      m_nrSlUePhySapProvider->SendPsschMacPdu (itPkt);
+                    }
                 }
-              if (itGrantInfo.second.tbTxCounter == itGrantInfo.second.nSelected)
-                {
-                  //38.321 5.22.1.3.1a says: if this transmission corresponds
-                  //to the last transmission of the MAC PDU, decrement
-                  //SL_RESOURCE_RESELECTION_COUNTER by 1, if available.
-                  --itGrantInfo.second.slResoReselCounter;
-                  --itGrantInfo.second.cReselCounter;
-                  //Clear the HARQ buffer since we assign the HARQ id
-                  //and put the TB in HARQ buffer (if RLC buffer was not empty)
-                  //even if the retxs are not configured.
-                  m_nrSlHarq->RecvNrSlHarqFeedback (currentGrant.dstL2Id, itGrantInfo.second.nrSlHarqId);
-                }
+              itGrant.second.front ().tbTxCounter++;
             }
           else
             {
@@ -1891,17 +1961,20 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
               //the LC ids whose packets are in the packet burst in the HARQ
               //buffer. I am not doing it at the moment as it might slow down
               //the simulation.
-              itGrantInfo.second.tbTxCounter++;
+              itGrant.second.front ().tbTxCounter++;
               Ptr<PacketBurst> pb = CreateObject <PacketBurst> ();
-              pb = m_nrSlHarq->GetPacketBurst (currentGrant.dstL2Id, itGrantInfo.second.nrSlHarqId);
+              pb = m_nrSlHarq->GetPacketBurst (currentSlot.dstL2Id, currentGrant.nrSlHarqId);
               if (m_enableBlindReTx)
                 {
                   if (pb->GetNPackets () > 0)
                     {
                       m_nrSlMacPduTxed = true;
-                      NS_ASSERT_MSG (pb->GetNPackets () > 0, "Packet burst for HARQ id " << +itGrantInfo.second.nrSlHarqId << " is empty");
+                      NS_ASSERT_MSG (pb->GetNPackets () > 0, "Packet burst for HARQ id " << +currentGrant.nrSlHarqId << " is empty");
                       for (const auto & itPkt : pb->GetPackets ())
                         {
+                          NS_LOG_DEBUG ("Sending PSSCH MAC PDU (Rtx) dstL2Id: " << currentSlot.dstL2Id
+                                        << " lcId: " << +currentSlot.lcId << " harqId: " << +currentGrant.nrSlHarqId
+                                        << " Packet Size: " << itPkt->GetSize ());
                           m_nrSlUePhySapProvider->SendPsschMacPdu (itPkt);
                         }
                     }
@@ -1909,20 +1982,16 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
                     {
                       NS_LOG_DEBUG ("Wasted Retx grant");
                     }
-                  if (itGrantInfo.second.tbTxCounter == itGrantInfo.second.nSelected)
+                  if (currentGrant.tbTxCounter == currentGrant.nSelected)
                     {
-                      //38.321 5.22.1.3.1a says: if this transmission corresponds
-                      //to the last transmission of the MAC PDU, decrement
-                      //SL_RESOURCE_RESELECTION_COUNTER by 1, if available.
-                      --itGrantInfo.second.slResoReselCounter;
-                      --itGrantInfo.second.cReselCounter;
-                      itGrantInfo.second.tbTxCounter = 0;
                       //generate fake feedback. It is important to clear the
                       //HARQ buffer, which make the HARQ id available again
                       //since we assign the HARQ id even in the end
                       //RLC buffer is empty. See the for loop above to trigger RLC.
-                      NS_LOG_INFO ("sending fake HARQ feedback for HARQ id " << +itGrantInfo.second.nrSlHarqId);
-                      m_nrSlHarq->RecvNrSlHarqFeedback (currentGrant.dstL2Id, itGrantInfo.second.nrSlHarqId);
+                      NS_LOG_INFO ("sending fake HARQ feedback for HARQ id " << +currentGrant.nrSlHarqId);
+                      m_nrSlHarq->RecvNrSlHarqFeedback (currentSlot.dstL2Id, currentGrant.nrSlHarqId);
+                      // Remove this grant from the queue
+                      itGrant.second.pop ();
                     }
                 }
               else
@@ -1936,17 +2005,18 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
           if (!m_nrSlMacPduTxed)
             {
               //NR SL MAC PDU was not txed. It can happen if RLC buffer was empty
-              NS_LOG_DEBUG ("Grant wasted at : Frame = " << currentGrant.sfn.GetFrame () << " SF = " << +currentGrant.sfn.GetSubframe () << " slot = " << currentGrant.sfn.GetSlot ());
+              NS_LOG_DEBUG ("Grant wasted at : Frame = " << currentSlot.sfn.GetFrame () << " SF = " << +currentSlot.sfn.GetSubframe () << " slot = " << currentSlot.sfn.GetSlot ());
               continue;
             }
+          atLeastOneTransmissionInSlot = true;
 
           //prepare and send SCI format 2A message
           NrSlSciF2aHeader sciF2a;
-          sciF2a.SetHarqId (itGrantInfo.second.nrSlHarqId);
-          sciF2a.SetNdi (currentGrant.ndi);
-          sciF2a.SetRv (currentGrant.rv);
+          sciF2a.SetHarqId (currentGrant.nrSlHarqId);
+          sciF2a.SetNdi (currentSlot.ndi);
+          sciF2a.SetRv (currentSlot.rv);
           sciF2a.SetSrcId (m_srcL2Id);
-          sciF2a.SetDstId (currentGrant.dstL2Id);
+          sciF2a.SetDstId (currentSlot.dstL2Id);
           //fields which are not used yet that is why we set them to 0
           sciF2a.SetCsiReq (0);
           sciF2a.SetHarqFbIndicator (0);
@@ -1959,10 +2029,11 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
           //set the VarTti allocation info for PSSCH
           NrSlVarTtiAllocInfo dataVarTtiInfo;
           dataVarTtiInfo.SlVarTtiType = NrSlVarTtiAllocInfo::DATA;
-          dataVarTtiInfo.symStart = currentGrant.slPsschSymStart;
-          dataVarTtiInfo.symLength = currentGrant.slPsschSymLength;
-          dataVarTtiInfo.rbStart = currentGrant.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
-          dataVarTtiInfo.rbLength = currentGrant.slPsschSubChLength * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
+          dataVarTtiInfo.symStart = currentSlot.slPsschSymStart;
+          dataVarTtiInfo.symLength = currentSlot.slPsschSymLength;
+          dataVarTtiInfo.symLength = 12;
+          dataVarTtiInfo.rbStart = currentSlot.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
+          dataVarTtiInfo.rbLength = currentSlot.slPsschSubChLength * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
           m_nrSlUePhySapProvider->SetNrSlVarTtiAllocInfo (sfn, dataVarTtiInfo);
 
           // Collect statistics for NR SL PSCCH UE MAC scheduling trace
@@ -1970,46 +2041,48 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
           psschStatsParams.timeMs = Simulator::Now ().GetSeconds () * 1000.0;
           psschStatsParams.imsi = m_imsi;
           psschStatsParams.rnti = m_rnti;
-          psschStatsParams.frameNum = currentGrant.sfn.GetFrame ();
-          psschStatsParams.subframeNum = currentGrant.sfn.GetSubframe ();
-          psschStatsParams.slotNum = currentGrant.sfn.GetSlot ();
-          psschStatsParams.symStart = currentGrant.slPsschSymStart;
-          psschStatsParams.symLength = currentGrant.slPsschSymLength;
-          psschStatsParams.rbStart = currentGrant.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
+          psschStatsParams.frameNum = currentSlot.sfn.GetFrame ();
+          psschStatsParams.subframeNum = currentSlot.sfn.GetSubframe ();
+          psschStatsParams.slotNum = currentSlot.sfn.GetSlot ();
+          psschStatsParams.symStart = currentSlot.slPsschSymStart;
+          psschStatsParams.symLength = currentSlot.slPsschSymLength;
+          psschStatsParams.rbStart = currentSlot.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
           psschStatsParams.subChannelSize = m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
-          psschStatsParams.rbLength = currentGrant.slPsschSubChLength * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
-          psschStatsParams.harqId = itGrantInfo.second.nrSlHarqId;
-          psschStatsParams.ndi = currentGrant.ndi;
-          psschStatsParams.rv = currentGrant.rv;
+          psschStatsParams.rbLength = currentSlot.slPsschSubChLength * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
+          psschStatsParams.harqId = currentGrant.nrSlHarqId;
+          psschStatsParams.ndi = currentSlot.ndi;
+          psschStatsParams.rv = currentSlot.rv;
           psschStatsParams.srcL2Id = m_srcL2Id;
-          psschStatsParams.dstL2Id = currentGrant.dstL2Id;
+          psschStatsParams.dstL2Id = currentSlot.dstL2Id;
           psschStatsParams.csiReq = sciF2a.GetCsiReq ();
           psschStatsParams.castType = sciF2a.GetCastType ();
+#ifdef NOTYET
           psschStatsParams.resoReselCounter = itGrantInfo.second.slResoReselCounter;
           psschStatsParams.cReselCounter = itGrantInfo.second.cReselCounter;
+#endif
           m_slPsschScheduling (psschStatsParams); //Trace
 
-          if (currentGrant.txSci1A)
+          if (currentSlot.txSci1A)
             {
               //prepare and send SCI format 1A message
               NrSlSciF1aHeader sciF1a;
-              sciF1a.SetPriority (currentGrant.priority);
-              sciF1a.SetMcs (currentGrant.mcs);
+              sciF1a.SetPriority (currentSlot.priority);
+              sciF1a.SetMcs (currentSlot.mcs);
               sciF1a.SetSciStage2Format (NrSlSciF1aHeader::SciFormat2A);
-              sciF1a.SetSlResourceReservePeriod (static_cast <uint16_t> (m_pRsvpTx.GetMilliSeconds ()));
+              sciF1a.SetSlResourceReservePeriod (static_cast <uint16_t> (currentGrant.rri.GetMilliSeconds ()));
               sciF1a.SetTotalSubChannels (GetTotalSubCh (m_poolId));
-              sciF1a.SetIndexStartSubChannel (currentGrant.slPsschSubChStart);
-              sciF1a.SetLengthSubChannel (currentGrant.slPsschSubChLength);
-              sciF1a.SetSlMaxNumPerReserve (currentGrant.maxNumPerReserve);
-              if (currentGrant.slotNumInd > 1)
+              sciF1a.SetIndexStartSubChannel (currentSlot.slPsschSubChStart);
+              sciF1a.SetLengthSubChannel (currentSlot.slPsschSubChLength);
+              sciF1a.SetSlMaxNumPerReserve (currentSlot.maxNumPerReserve);
+              if (currentSlot.slotNumInd > 1)
                 {
-                  //itGrantInfo.second.slotAllocations.cbegin () points to
+                  //itGrant.second.front().slotAllocations.cbegin () points to
                   //the next slot allocation this slot has to indicate
-                  std::vector<uint8_t> gaps = ComputeGaps (currentGrant.sfn,
-                                                           itGrantInfo.second.slotAllocations.cbegin (),
-                                                           currentGrant.slotNumInd);
-                  std::vector<uint8_t> sbChIndex = GetStartSbChOfReTx (itGrantInfo.second.slotAllocations.cbegin (),
-                                                                       currentGrant.slotNumInd);
+                  std::vector<uint8_t> gaps = ComputeGaps (currentSlot.sfn,
+                                                           itGrant.second.front ().slotAllocations.cbegin (),
+                                                           currentSlot.slotNumInd);
+                  std::vector<uint8_t> sbChIndex = GetStartSbChOfReTx (itGrant.second.front ().slotAllocations.cbegin (),
+                                                                       currentSlot.slotNumInd);
                   sciF1a.SetGapReTx1 (gaps.at (0));
                   sciF1a.SetIndexStartSbChReTx1 (sbChIndex.at (0));
                   if (gaps.size () > 1)
@@ -2022,18 +2095,20 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
 
               Ptr<Packet> pktSciF1a = Create<Packet> ();
               pktSciF1a->AddHeader (sciF1a);
-              NrSlMacPduTag tag (m_rnti, currentGrant.sfn, currentGrant.slPsschSymStart, currentGrant.slPsschSymLength, tbSize, currentGrant.dstL2Id);
+              NrSlMacPduTag tag (m_rnti, currentSlot.sfn, currentSlot.slPsschSymStart, currentSlot.slPsschSymLength, currentGrant.tbSize, currentSlot.dstL2Id);
               pktSciF1a->AddPacketTag (tag);
 
+              NS_LOG_DEBUG ("Sending PSCCH MAC PDU dstL2Id: " << currentSlot.dstL2Id << " lcId: " << +currentSlot.lcId
+                            << " harqId: " << +currentGrant.nrSlHarqId);
               m_nrSlUePhySapProvider->SendPscchMacPdu (pktSciF1a);
 
               //set the VarTti allocation info for PSCCH
               NrSlVarTtiAllocInfo ctrlVarTtiInfo;
               ctrlVarTtiInfo.SlVarTtiType = NrSlVarTtiAllocInfo::CTRL;
-              ctrlVarTtiInfo.symStart = currentGrant.slPscchSymStart;
-              ctrlVarTtiInfo.symLength = currentGrant.slPscchSymLength;
-              ctrlVarTtiInfo.rbStart = currentGrant.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
-              ctrlVarTtiInfo.rbLength = currentGrant.numSlPscchRbs;
+              ctrlVarTtiInfo.symStart = currentSlot.slPscchSymStart;
+              ctrlVarTtiInfo.symLength = currentSlot.slPscchSymLength;
+              ctrlVarTtiInfo.rbStart = currentSlot.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
+              ctrlVarTtiInfo.rbLength = currentSlot.numSlPscchRbs;
               m_nrSlUePhySapProvider->SetNrSlVarTtiAllocInfo (sfn, ctrlVarTtiInfo);
 
               // Collect statistics for NR SL PSCCH UE MAC scheduling trace
@@ -2041,21 +2116,21 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
               pscchStatsParams.timeMs = Simulator::Now ().GetSeconds () * 1000.0;
               pscchStatsParams.imsi = m_imsi;
               pscchStatsParams.rnti = m_rnti;
-              pscchStatsParams.frameNum = currentGrant.sfn.GetFrame ();
-              pscchStatsParams.subframeNum = currentGrant.sfn.GetSubframe ();
-              pscchStatsParams.slotNum = currentGrant.sfn.GetSlot ();
-              pscchStatsParams.symStart = currentGrant.slPscchSymStart;
-              pscchStatsParams.symLength = currentGrant.slPscchSymLength;
-              pscchStatsParams.rbStart = currentGrant.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
-              pscchStatsParams.rbLength = currentGrant.numSlPscchRbs;
-              pscchStatsParams.priority = currentGrant.priority;
-              pscchStatsParams.mcs = currentGrant.mcs;
-              pscchStatsParams.tbSize = tbSize;
-              pscchStatsParams.slResourceReservePeriod = static_cast <uint16_t> (m_pRsvpTx.GetMilliSeconds ());
+              pscchStatsParams.frameNum = currentSlot.sfn.GetFrame ();
+              pscchStatsParams.subframeNum = currentSlot.sfn.GetSubframe ();
+              pscchStatsParams.slotNum = currentSlot.sfn.GetSlot ();
+              pscchStatsParams.symStart = currentSlot.slPscchSymStart;
+              pscchStatsParams.symLength = currentSlot.slPscchSymLength;
+              pscchStatsParams.rbStart = currentSlot.slPsschSubChStart * m_slTxPool->GetNrSlSubChSize (GetBwpId (), m_poolId);
+              pscchStatsParams.rbLength = currentSlot.numSlPscchRbs;
+              pscchStatsParams.priority = currentSlot.priority;
+              pscchStatsParams.mcs = currentSlot.mcs;
+              pscchStatsParams.tbSize = currentGrant.tbSize;
+              pscchStatsParams.slResourceReservePeriod = static_cast <uint16_t> (currentGrant.rri.GetMilliSeconds ());
               pscchStatsParams.totalSubChannels = GetTotalSubCh (m_poolId);
-              pscchStatsParams.slPsschSubChStart = currentGrant.slPsschSubChStart;
-              pscchStatsParams.slPsschSubChLength = currentGrant.slPsschSubChLength;
-              pscchStatsParams.slMaxNumPerReserve = currentGrant.maxNumPerReserve;
+              pscchStatsParams.slPsschSubChStart = currentSlot.slPsschSubChStart;
+              pscchStatsParams.slPsschSubChLength = currentSlot.slPsschSubChLength;
+              pscchStatsParams.slMaxNumPerReserve = currentSlot.maxNumPerReserve;
               pscchStatsParams.gapReTx1 = sciF1a.GetGapReTx1 ();
               pscchStatsParams.gapReTx2 = sciF1a.GetGapReTx2 ();
               m_slPscchScheduling (pscchStatsParams); //Trace
@@ -2069,6 +2144,11 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
         }
       //make this false before processing the grant for next destination
       m_nrSlMacPduTxed = false;
+    }
+  if (atLeastOneTransmissionInSlot)
+    {
+      NS_LOG_DEBUG ("IMSI " << m_imsi << " adding SFN history at sfn " << sfn);
+      m_transmitHistory.push_back (sfn);
     }
 }
 
@@ -2105,99 +2185,58 @@ NrUeMac::GetStartSbChOfReTx (std::set <NrSlSlotAlloc>::const_iterator it, uint8_
   return startSbChIndex;
 }
 
-std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
-NrUeMac::FilterTxOpportunities (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOppr)
-{
-  NS_LOG_FUNCTION (this);
-
-  if (txOppr.empty ())
-    {
-      return txOppr;
-    }
-
-  NrSlSlotAlloc dummyAlloc;
-
-  for (const auto & itDst : m_grantInfo)
-    {
-      auto itTxOppr = txOppr.begin ();
-      while (itTxOppr != txOppr.end ())
-        {
-          dummyAlloc.sfn = itTxOppr->sfn;
-          auto itAlloc = itDst.second.slotAllocations.find (dummyAlloc);
-          if (itAlloc != itDst.second.slotAllocations.end ())
-            {
-              itTxOppr = txOppr.erase (itTxOppr);
-            }
-          else
-            {
-              ++itTxOppr;
-            }
-        }
-    }
-
-  return txOppr;
-}
-
 void
-NrUeMac::DoSchedUeNrSlConfigInd (const std::set<NrSlSlotAlloc>& slotAllocList)
+NrUeMac::DoSchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlUeMacSchedSapUser::NrSlGrant& grant)
 {
-  NS_LOG_FUNCTION (this);
-  auto itGrantInfo = m_grantInfo.find (slotAllocList.begin ()->dstL2Id);
+  NS_LOG_FUNCTION (this << dstL2Id << +lcId);
 
-  if (itGrantInfo == m_grantInfo.end ())
+  // This grant will lead to dequeue of a new transport block.  There should
+  // be a HARQ process ID available (otherwise the later enqueue will fail)
+  NS_ABORT_MSG_UNLESS (m_nrSlHarq->IsHarqIdAvailable (grant.nrSlHarqId), "Unable to assign granted HARQ ID");
+  m_nrSlHarq->AssignNrSlHarqProcessId (grant.nrSlHarqId, dstL2Id);
+
+  std::pair<uint32_t, uint8_t> key = std::make_pair (dstL2Id, lcId);
+  auto it = m_slGrants.find (key);
+  if (it == m_slGrants.end ())
     {
-      NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
-      itGrantInfo = m_grantInfo.emplace (std::make_pair (slotAllocList.begin ()->dstL2Id, grant)).first;
+      NS_LOG_LOGIC ("Adding new grant structure for " << dstL2Id << " for " << +lcId);
+      std::queue<NrSlUeMacSchedSapUser::NrSlGrant> q;
+      q.push (grant);
+      m_slGrants.emplace (key, q);
     }
   else
     {
-      NS_ASSERT_MSG (itGrantInfo->second.slResoReselCounter == 0, "Sidelink resource counter must be zero before assigning new grant for dst " << slotAllocList.begin ()->dstL2Id);
-      NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
-      itGrantInfo->second = grant;
-    }
-
-  NS_ASSERT_MSG (itGrantInfo->second.slotAllocations.size () > 0, "CreateGrantInfo failed to create grants");
-}
-
-NrUeMac::NrSlGrantInfo
-NrUeMac::CreateGrantInfo (const std::set<NrSlSlotAlloc>& slotAllocList)
-{
-  NS_LOG_FUNCTION (this);
-  NS_ASSERT_MSG ((m_reselCounter != 0), "Can not create grants with 0 Resource selection counter");
-  NS_ASSERT_MSG ((m_cResel != 0), "Can not create grants with 0 cResel counter");
-
-  NS_LOG_DEBUG ("Creating grants with Resel Counter " << +m_reselCounter << " and cResel " << m_cResel);
-
-  uint16_t resPeriodSlots = m_slTxPool->GetResvPeriodInSlots (GetBwpId (), m_poolId, m_pRsvpTx, m_nrSlUePhySapProvider->GetSlotPeriod ());
-  NrSlGrantInfo grant;
-
-  grant.cReselCounter = m_cResel;
-  //save reselCounter to be used if probability of keeping the resource would
-  //be higher than the configured one
-  grant.prevSlResoReselCounter = m_reselCounter;
-  grant.slResoReselCounter = m_reselCounter;
-
-  grant.nSelected = static_cast<uint8_t>(slotAllocList.size ());
-  NS_LOG_DEBUG ("nSelected = " << +grant.nSelected);
-
-  for (uint16_t i = 0; i < m_cResel; i++)
-    {
-      for (const auto &it : slotAllocList)
+      NS_LOG_LOGIC ("Inserting new grant to " << dstL2Id << " for " << +lcId);
+      if (m_nrSlHarq->IsHarqIdAvailable (grant.nrSlHarqId))
         {
-          auto slAlloc = it;
-          slAlloc.sfn.Add (i * resPeriodSlots);
-          NS_LOG_DEBUG ("First tx at : Frame = " << slAlloc.sfn.GetFrame ()
-                        << " SF = " << +slAlloc.sfn.GetSubframe ()
-                        << " slot = " << slAlloc.sfn.GetSlot ());
-          bool insertStatus = grant.slotAllocations.emplace (slAlloc).second;
-          NS_ASSERT_MSG (insertStatus, "slot allocation already exist");
+           m_nrSlHarq->AssignNrSlHarqProcessId (grant.nrSlHarqId, dstL2Id);
+        }
+      it->second.push (grant);
+    }
+  // The grant has a set of NrSlSlotAlloc.  One of these slots will be for
+  // new data and some for retransmissions.  For the new data slots, notify
+  // the RLC layer of transmission opportunities.
+  for (const auto &itSlotAlloc : grant.slotAllocations)
+    {
+      if (itSlotAlloc.ndi == 0)
+        {
+          continue;
+        }
+      for (const auto & itLcRlcPduInfo : itSlotAlloc.slRlcPduInfo)
+        {
+          SidelinkLcIdentifier slLcId;
+          slLcId.lcId = itLcRlcPduInfo.lcid;
+          slLcId.srcL2Id = m_srcL2Id;
+          slLcId.dstL2Id = dstL2Id;
+          const auto & itLc = m_nrSlLcInfoMap.find (slLcId);
+          NS_ASSERT_MSG (itLc != m_nrSlLcInfoMap.end (), "No LC with id " << +itLcRlcPduInfo.lcid << " found for destination " << itSlotAlloc.dstL2Id);
+          NS_LOG_DEBUG ("Notifying NR SL RLC of TX opportunity for LC id " << +itLcRlcPduInfo.lcid << " for TB size " << itLcRlcPduInfo.size);
+          itLc->second.macSapUser->NotifyNrSlTxOpportunity (NrSlMacSapUser::NrSlTxOpportunityParameters (itLcRlcPduInfo.size, m_rnti, itLcRlcPduInfo.lcid,
+             0, grant.nrSlHarqId, GetBwpId (),
+             m_srcL2Id, dstL2Id));
         }
     }
-
-  return grant;
 }
-
-
 
 NrSlMacSapProvider*
 NrUeMac::GetNrSlMacSapProvider ()
@@ -2275,10 +2314,8 @@ NrUeMac::DoTransmitNrSlRlcPdu (const NrSlMacSapProvider::NrSlRlcPduParameters &p
   NS_LOG_FUNCTION (this << +params.lcid << +params.harqProcessId);
   LteRadioBearerTag bearerTag (params.rnti, params.lcid, 0);
   params.pdu->AddPacketTag (bearerTag);
-  NS_LOG_DEBUG ("Adding packet in HARQ buffer for HARQ id " << +params.harqProcessId << " pkt size " << params.pdu->GetSize ());
+  NS_LOG_DEBUG ("Adding packet in HARQ buffer for HARQ ID " << +params.harqProcessId << " pkt size " << params.pdu->GetSize ());
   m_nrSlHarq->AddPacket (params.dstL2Id, params.lcid, params.harqProcessId, params.pdu);
-  m_nrSlUePhySapProvider->SendPsschMacPdu (params.pdu);
-  m_nrSlMacPduTxed = true;
 }
 
 void
@@ -2318,6 +2355,19 @@ void
 NrUeMac::DoAddNrSlLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &slLcInfo, NrSlMacSapUser* msu)
 {
   NS_LOG_FUNCTION (this << +slLcInfo.lcId << slLcInfo.srcL2Id << slLcInfo.dstL2Id);
+
+  // The following ValidateResvPeriod() method was moved here from the old
+  // SetReservationPeriod() method.  The code no longer configures the RRI
+  // for the MAC as a whole, but sets it on a per-LC basis.  This checks that
+  // only the standard compliant values, including their intermediate values
+  // could be set. TS38.321 sec 5.22.1.1 instructs to select one of the
+  // allowed values configured by RRC in sl-ResourceReservePeriodList and
+  // set the resource reservation interval with the selected value.
+  // Also, this method checks that the reservation period is a multiple of
+  // the length of the physical sidelink pool (i.e., the resultant bitmap
+  // after applying SL bitmap over the TDD pattern).
+  m_slTxPool->ValidateResvPeriod (GetBwpId (), m_poolId, slLcInfo.rri, m_nrSlUePhySapProvider->GetSlotPeriod ());
+
   SidelinkLcIdentifier slLcIdentifier;
   slLcIdentifier.lcId = slLcInfo.lcId;
   slLcIdentifier.srcL2Id = slLcInfo.srcL2Id;
@@ -2334,7 +2384,9 @@ NrUeMac::DoAddNrSlLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &s
   auto lcInfo = NrSlUeMacCschedSapProvider::SidelinkLogicalChannelInfo (slLcInfo.dstL2Id, slLcInfo.lcId,
                                                                         slLcInfo.lcGroup, slLcInfo.pqi,
                                                                         slLcInfo.priority, slLcInfo.isGbr,
-                                                                        slLcInfo.mbr, slLcInfo.gbr);
+                                                                        slLcInfo.mbr, slLcInfo.gbr, slLcInfo.castType,
+                                                                        slLcInfo.harqEnabled, slLcInfo.pdb,
+                                                                        slLcInfo.dynamic, slLcInfo.rri);
 
   //Following if is needed because this method is called for both
   //TX and RX LCs addition into m_nrSlLcInfoMap. In case of RX LC, the
@@ -2417,7 +2469,6 @@ NrUeMac::DoAddNrSlCommTxPool (Ptr<const NrSlCommResourcePool> txPool)
 {
   NS_LOG_FUNCTION (this << txPool);
   m_slTxPool = txPool;
-  m_slTxPool->ValidateResvPeriod (GetBwpId (), m_poolId, m_pRsvpTx, m_nrSlUePhySapProvider->GetSlotPeriod ());
 }
 
 void
@@ -2575,88 +2626,9 @@ NrUeMac::GetTotalSubCh (uint16_t poolId) const
 }
 
 void
-NrUeMac::SetReservationPeriod (const Time &rsvp)
-{
-  NS_LOG_FUNCTION (this << rsvp);
-  m_pRsvpTx = rsvp;
-}
-
-Time
-NrUeMac::GetReservationPeriod () const
-{
-  return m_pRsvpTx;
-}
-
-uint8_t
-NrUeMac::GetRndmReselectionCounter () const
-{
-  uint8_t min;
-  uint8_t max;
-  uint16_t periodInt = static_cast <uint16_t> (m_pRsvpTx.GetMilliSeconds ());
-
-  switch(periodInt)
-  {
-    case 100:
-    case 150:
-    case 200:
-    case 250:
-    case 300:
-    case 350:
-    case 400:
-    case 450:
-    case 500:
-    case 550:
-    case 600:
-    case 700:
-    case 750:
-    case 800:
-    case 850:
-    case 900:
-    case 950:
-    case 1000:
-      min = 5;
-      max = 15;
-      break;
-    default:
-      if (periodInt < 100)
-        {
-          min = GetLoBoundReselCounter (periodInt);
-          max = GetUpBoundReselCounter (periodInt);
-        }
-      else
-        {
-          NS_FATAL_ERROR ("VALUE NOT SUPPORTED!");
-        }
-      break;
-  }
-
-  NS_LOG_DEBUG ("Range to choose random reselection counter. min: " << +min << " max: " << +max);
-  return m_ueSelectedUniformVariable->GetInteger (min, max);
-}
-
-uint8_t
-NrUeMac::GetLoBoundReselCounter (uint16_t pRsrv) const
-{
-  NS_LOG_FUNCTION (this << pRsrv);
-  NS_ASSERT_MSG (pRsrv < 100, "Resource reservation must be less than 100 ms");
-  uint8_t lBound = (5 * std::ceil (100 / (std::max (static_cast <uint16_t> (20), pRsrv))));
-  return lBound;
-}
-
-uint8_t
-NrUeMac::GetUpBoundReselCounter (uint16_t pRsrv) const
-{
-  NS_LOG_FUNCTION (this << pRsrv);
-  NS_ASSERT_MSG (pRsrv < 100, "Resource reservation must be less than 100 ms");
-  uint8_t uBound = (15 * std::ceil (100 / (std::max (static_cast <uint16_t> (20), pRsrv))));
-  return uBound;
-}
-
-void
 NrUeMac::SetNumSidelinkProcess (uint8_t numSidelinkProcess)
 {
   NS_LOG_FUNCTION (this);
-  NS_ASSERT_MSG (m_grantInfo.size () == 0, "Can not reset the number of Sidelink processes. Scheduler already assigned grants");
   m_numSidelinkProcess = numSidelinkProcess;
   m_nrSlHarq->InitHarqBuffer (m_numSidelinkProcess);
 }

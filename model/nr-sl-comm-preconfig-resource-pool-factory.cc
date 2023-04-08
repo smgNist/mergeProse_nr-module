@@ -17,14 +17,14 @@
 *
 */
 
-#include "nr-sl-comm-resource-pool-factory.h"
+#include "nr-sl-comm-preconfig-resource-pool-factory.h"
 #include "ns3/log.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("NrSlCommResourcePoolFactory");
+NS_LOG_COMPONENT_DEFINE ("NrSlCommPreconfigResourcePoolFactory");
 
-NrSlCommResourcePoolFactory::NrSlCommResourcePoolFactory ()
+NrSlCommPreconfigResourcePoolFactory::NrSlCommPreconfigResourcePoolFactory ()
 {
   NS_LOG_FUNCTION (this);
   m_setupReleasePscch = "SETUP";
@@ -38,14 +38,14 @@ NrSlCommResourcePoolFactory::NrSlCommResourcePoolFactory ()
   m_slMaxNumPerReserve = 2;
 }
 
-NrSlCommResourcePoolFactory::~NrSlCommResourcePoolFactory ()
+NrSlCommPreconfigResourcePoolFactory::~NrSlCommPreconfigResourcePoolFactory ()
 {
   NS_LOG_FUNCTION (this);
 }
-
 const LteRrcSap::SlResourcePoolNr
-NrSlCommResourcePoolFactory::CreatePool ()
+NrSlCommPreconfigResourcePoolFactory::CreatePool ()
 {
+  NS_LOG_FUNCTION (this);
   if (m_setupReleasePscch == "SETUP")
     {
       m_pool.slPscchConfig.setupRelease = LteRrcSap::SlPscchConfig::SETUP;
@@ -159,119 +159,119 @@ NrSlCommResourcePoolFactory::CreatePool ()
         {
         case 0:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS0;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 10:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS10;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 20:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS20;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 30:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS30;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 40:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS40;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 50:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS50;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 60:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS60;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 70:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS70;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 80:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS80;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 90:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS90;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 100:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS100;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 150:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS150;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 200:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS200;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 250:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS250;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 300:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS300;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 350:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS350;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 400:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS400;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 450:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS450;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 500:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS500;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 550:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS550;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 600:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS600;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 650:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS650;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 700:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS700;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 750:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS750;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 800:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS800;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 850:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS850;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 900:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS900;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 950:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS950;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         case 1000:
           slReserved.period = LteRrcSap::SlResourceReservePeriod::MS1000;
-          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back(slReserved);
+          m_pool.slUeSelectedConfigRp.slResourceReservePeriodList.push_back (slReserved);
           break;
         default:
           NS_FATAL_ERROR ("Invalid sidelink reservation period : " << i << " used");
@@ -297,122 +297,6 @@ NrSlCommResourcePoolFactory::CreatePool ()
 
   return m_pool;
 }
-
-bool
-NrSlCommResourcePoolFactory::IsSetupPscchResources () const
-{
-  bool isSetup = false;
-  if (m_setupReleasePscch == "SETUP")
-    {
-      isSetup = true;
-    }
-
-  return isSetup;
-}
-
-void
-NrSlCommResourcePoolFactory::SetupPscchResources ()
-{
-  m_setupReleasePscch = LteRrcSap::SlPscchConfig::SETUP;
-}
-
-uint16_t
-NrSlCommResourcePoolFactory::GetSlFreqResourcePscch () const
-{
-  return m_slFreqResourcePscch;
-}
-
-uint16_t
-NrSlCommResourcePoolFactory::GetSlTimeResourcePscch () const
-{
-  return m_slTimeResourcePscch;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlTimeResourcePscch (uint16_t slTimeResourcePscch)
-{
-  m_slTimeResourcePscch = slTimeResourcePscch;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlFreqResourcePscch (uint16_t slFreqResourcePscch)
-{
-  m_slFreqResourcePscch = slFreqResourcePscch;
-}
-
-uint16_t
-NrSlCommResourcePoolFactory::GetSlSubchannelSize () const
-{
-  return m_slSubchannelSize;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlSubchannelSize (uint16_t slSubchannelSize)
-{
-  m_slSubchannelSize = slSubchannelSize;
-}
-
-uint16_t
-NrSlCommResourcePoolFactory::GetSlSensingWindow () const
-{
-  return m_slSensingWindow;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlSensingWindow (uint16_t slSensingWindow)
-{
-  m_slSensingWindow = slSensingWindow;
-}
-
-uint16_t
-NrSlCommResourcePoolFactory::GetSlSelectionWindow () const
-{
-  return m_slSelectionWindow;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlSelectionWindow (uint16_t slSelectionWindow)
-{
-  m_slSelectionWindow = slSelectionWindow;
-}
-
-
-const std::list<uint16_t>&
-NrSlCommResourcePoolFactory::GetSlResourceReservePeriodList () const
-{
-  return m_slResourceReservePeriodList;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlResourceReservePeriodList (std::list<uint16_t>& slResourceReservePeriodList)
-{
-  m_slResourceReservePeriodList = slResourceReservePeriodList;
-}
-
-const std::vector<std::bitset<1> >&
-NrSlCommResourcePoolFactory::GetSlTimeResources () const
-{
-  return m_slTimeResource;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlTimeResources (std::vector <std::bitset<1> >& slBitmap)
-{
-  m_slTimeResource = slBitmap;
-}
-
-uint16_t
-NrSlCommResourcePoolFactory::GetSlMaxNumPerReserve () const
-{
-  return m_slMaxNumPerReserve;
-}
-
-void
-NrSlCommResourcePoolFactory::SetSlMaxNumPerReserve (uint16_t maxNumPerReserve)
-{
-  m_slMaxNumPerReserve = maxNumPerReserve;
-}
-
 
 } // namespace ns3
 
