@@ -967,12 +967,6 @@ protected:
    */
   void DoReceiveSensingData (SensingData sensingData);
 
-  /**
-    * \brief Notification from PHY that a slot was not monitored
-    * \param unmonitoredSlot The slot that was not monitored
-    */
-   void DoNotifyUnmonitoredSlot (SfnSf unmonitoredSlot);
-
   // forwarded from MemberNrSlUeMacSchedSapUser
   /**
    * \brief Method to communicate NR SL grants from NR SL UE scheduler

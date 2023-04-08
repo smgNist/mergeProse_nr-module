@@ -1734,31 +1734,6 @@ NrUeMac::DoReceiveSensingData (SensingData sensingData)
 }
 
 void
-NrUeMac::DoNotifyUnmonitoredSlot (SfnSf unmonitoredSlot)
-{
-  NS_LOG_FUNCTION (this << unmonitoredSlot.Normalize ());
-
-  if (m_enableSensing)
-    {
-      //Create sensing data structure for the unmonitored slot
-      //to be used in NrUeMac::GetNrSlTxOpportunities according to step 5 of 3GPP TS 38.214 (v16.7.0) section 8.1.4
-      SensingData unmonitoredData (unmonitoredSlot,                       //sfn
-                                   m_pRsvpTx.GetMilliSeconds (),          //rsvp (use this UE Tx rsvp)
-                                   GetTotalSubCh (m_poolId),              //sbChLength (All BW)
-                                   0,                                     //sbChStart (Starting at idx 0)
-                                   std::numeric_limits <uint8_t>::max (), //prio (default)
-                                   0.0,                                   //slRsrp (default)
-                                   std::numeric_limits <uint8_t>::max (), //gapReTx1 (default)
-                                   std::numeric_limits <uint8_t>::max (), //sbChStartReTx1 (default)
-                                   std::numeric_limits <uint8_t>::max (), //gapReTx2 (default)
-                                   std::numeric_limits <uint8_t>::max ()  //sbChStartReTx2 (default)
-                                   );
-      //oldest data will be at the front of the queue
-      m_nrSlUnmonSlotsData.push_back (unmonitoredData);
-    }
-}
-
-void
 NrUeMac::RemoveOldSensingData (const SfnSf& sfn, uint16_t sensingWindow, std::list<SensingData>& sensingData, [[maybe_unused]] uint64_t imsi) 
 {
   NS_LOG_FUNCTION (this << sfn << sensingWindow << sensingData.size () << imsi);
@@ -1780,35 +1755,6 @@ NrUeMac::RemoveOldSensingData (const SfnSf& sfn, uint16_t sensingWindow, std::li
           break;
         }
       ++it;
-    }
-}
-
-void
-NrUeMac::UpdateSensingWindow (const SfnSf& sfn)
-{
-  NS_LOG_FUNCTION (this << sfn);
-  //To keep the size of the buffer equal to [n – T0 , n – Tproc0)
-  //the other end of sensing buffer is trimmed in GetNrSlTxOpportunities.
-
-
-  //Update sensing window for not monitored slots as well
-  //Here we trim oldest data (t < n - T0)
-  auto it2 = m_nrSlUnmonSlotsData.cbegin();
-  while (it2 != m_nrSlUnmonSlotsData.cend ())
-    {
-      if (it2->sfn.Normalize () < sfn.Normalize () - sensWindLen)
-        {
-          NS_LOG_DEBUG ("IMSI " << m_imsi << " not monitored slot at sfn " << sfn << " received at " << it2->sfn);
-          it2 = m_nrSlUnmonSlotsData.erase (it2);
-        }
-      else
-        {
-          //once we reached an unmonitored slot, which lies in the
-          //sensing window, we break. If the last entry lies in the sensing
-          //window, the rest of the entries as well.
-          break;
-        }
-      ++it2;
     }
 }
 

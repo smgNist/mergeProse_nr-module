@@ -669,9 +669,11 @@ NrSlUeProse::ActivateDirectLinkDataRadioBearer (uint32_t peerL2Id, NrSlUeProseDi
     {
       //Create unicast TFT to be able to transmit to peer UE
       Ptr<LteSlTft> tft;
+      SidelinkInfo slInfo;
+      slInfo.m_castType = SidelinkInfo::CastType::Unicast;
+      slInfo.m_dstL2Id = peerL2Id;
       tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT,
-                              LteSlTft::CommType::Unicast,
-                              ipInfo.peerIpv4Addr, peerL2Id);
+                              ipInfo.peerIpv4Addr, slInfo);
       m_nrSlUeSvcNasSapProvider->ActivateSvcNrSlDataRadioBearer (tft);
       it->second->m_hasPendingSlDrb = true;
     }

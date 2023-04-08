@@ -29,7 +29,7 @@
 #include <ns3/nr-ue-mac.h>
 #include <ns3/nr-ue-phy.h>
 #include <ns3/nr-sl-comm-resource-pool.h>
-#include <ns3/nr-sl-comm-preconfig-resource-pool-factory.h>
+#include <ns3/nr-sl-comm-resource-pool-factory.h>
 #include <ns3/lte-rrc-sap.h>
 #include <ns3/nr-sl-ue-rrc.h>
 
@@ -43,7 +43,7 @@ Ptr<NrSlCommResourcePool>
 CreateNrSlCommResourcePool(uint16_t numSubchannels)
 {
   Ptr<NrSlCommResourcePool> slPool = CreateObject<NrSlCommResourcePool> ();
-  Ptr<NrSlCommPreconfigResourcePoolFactory> ptrFactory = Create<NrSlCommPreconfigResourcePoolFactory> ();
+  Ptr<NrSlCommResourcePoolFactory> ptrFactory = Create<NrSlCommResourcePoolFactory> ();
   std::vector <std::bitset<1> > slBitmap = {1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1};
   ptrFactory->SetSlTimeResources (slBitmap);
   ptrFactory->SetSlSensingWindow (100); // T0 in ms
