@@ -106,14 +106,19 @@ NrSlUeMacGeneralSchedSapProvider::SchedUeNrSlRlcBufferReq (const struct NrSlUeMa
   m_scheduler->DoSchedUeNrSlRlcBufferReq (params);
 }
 void
-NrSlUeMacGeneralSchedSapProvider::SchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::deque<uint8_t>& ids)
+NrSlUeMacGeneralSchedSapProvider::SchedUeNrSlTriggerReq (const SfnSf& sfn, const std::deque<uint8_t>& ids)
 {
-  m_scheduler->DoSchedUeNrSlTriggerReq (sfn, dstL2Id, ids);
+  m_scheduler->DoSchedUeNrSlTriggerReq (sfn, ids);
 }
 void
 NrSlUeMacGeneralSchedSapProvider::SlotIndication (SfnSf sfn, bool isSidelinkSlot)
 {
   m_scheduler->DoSlotIndication (sfn, isSidelinkSlot);
+}
+void
+NrSlUeMacGeneralSchedSapProvider::NotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size)
+{
+  m_scheduler->DoNotifyNrSlRlcPduDequeue (dstL2Id, lcId, size);
 }
 
 } // namespace ns3

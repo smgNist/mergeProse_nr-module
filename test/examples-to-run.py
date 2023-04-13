@@ -64,6 +64,15 @@ cpp_examples = [
     ("nr-prose-network-coex", "True", "True"),
     ("nr-prose-network-l3-relay", "True", "True"),
     ("nr-prose-l3-relay-on-off", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=1 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=2 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=3 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=true", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=4 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=4 --dstL2IdConfig=2 --priorityConfig=1 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=3 --dstL2IdConfig=1 --priorityConfig=3 --rriConfig=1 --prioToSps=false", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=3 --dstL2IdConfig=1 --priorityConfig=3 --rriConfig=1 --prioToSps=true", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=4 --dstL2IdConfig=1 --priorityConfig=1 --rriConfig=1 --prioToSps=true", "True", "True"),
+    ("nr-sl-simple-multi-lc --testing=true --schedTypeConfig=2 --dstL2IdConfig=1 --priorityConfig=3 --rriConfig=2 --prioToSps=true", "True", "True"),
     ]
 
 # A list of Python examples to run in order to ensure that they remain

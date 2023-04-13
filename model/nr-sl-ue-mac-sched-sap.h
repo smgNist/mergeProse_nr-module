@@ -173,16 +173,23 @@ public:
    * \brief Send NR Sidleink trigger request from UE MAC to the UE scheduler
    *
    * \param sfn The SfnSf
-   * \param dstL2Id The destination layer 2 id
    * \param ids available HARQ process IDs
    */
-  virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::deque<uint8_t>& ids) = 0;
+  virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, const std::deque<uint8_t>& ids) = 0;
   /**
    * \brief Tell the scheduler that a new slot has started
    * \param sfn Ths current SfnSf
    * \param isSidelinkSlot Whether the slot is a sidelink slot
    */
   virtual void SlotIndication (SfnSf sfn, bool isSidelinkSlot) = 0;
+  /**
+   * \brief Tell the scheduler that an RLC PDU packet has been dequeue and is now on the HARQ buffer
+   *
+   * \param dstL2Id The destination layer 2 ID
+   * \param lcId The logical channel ID
+   * \param size The size of the RLC PDU
+   */
+  virtual void NotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size) = 0;
 };
 
 /**
@@ -225,10 +232,9 @@ public:
   /**
    * \brief Method to communicate NR SL grants from NR SL UE scheduler
    * \param dstL2Id destination L2 ID
-   * \param lcId Logical Channel ID
    * \param grant The sidelink grant
    */
-  virtual void SchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlGrant& grant) = 0;
+  virtual void SchedUeNrSlConfigInd (uint32_t dstL2Id, const NrSlGrant& grant) = 0;
 
   /**
    * \brief Method to get total number of sub-channels.

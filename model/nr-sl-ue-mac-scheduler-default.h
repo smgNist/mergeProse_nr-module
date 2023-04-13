@@ -31,6 +31,16 @@
 
 namespace ns3 {
 
+
+struct AllocationInfo
+{
+  uint8_t m_priority {0};                         //!< Priority
+  bool m_isDynamic {false};                       //!< Dynamic (per-PDU) scheduling indication (SPS when false)
+  uint32_t m_tbSize {0};                          //!< The transport block size
+  std::vector <SlRlcPduInfo> m_allocatedRlcPdus;  //!< RLC PDUs
+  Time m_rri {0};                                 //!< Resource Reservation Interval (if SPS)
+};
+
 /**
  * \ingroup scheduler
  *
@@ -84,10 +94,54 @@ public:
    * \brief Send NR Sidelink trigger request from UE MAC to the UE scheduler
    *
    * \param sfn The SfnSf
-   * \param dstL2Id The destination layer 2 id
-   * \param ids available HARQ process IDs
+   * \param ids available HARQ process IDs from the MAC
    */
-  virtual void DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::deque<uint8_t>& ids) override;
+  virtual void DoSchedUeNrSlTriggerReq (const SfnSf& sfn, const std::deque<uint8_t>& ids) override;
+
+  /**
+   * \brief Tell the scheduler that an RLC PDU packet has been dequeue and is now on the HARQ buffer
+   *
+   * \param dstL2Id The destination layer 2 ID
+   * \param lcId The logical channel ID
+   * \param size The size of the RLC PDU
+   */
+  virtual void  DoNotifyNrSlRlcPduDequeue (uint32_t dstL2Id, uint8_t lcId, uint32_t size) override;
+
+  /**
+   * \brief Perform the Tx resource (re-)selection check for the given destination and logical channel
+   *
+   * \param dstL2Id The destination layer 2 ID
+   * \param lcId The logical channel ID
+   * \return True if the LC passes the check, false otherwise
+   */
+  bool TxResourceReselectionCheck (uint32_t dstL2Id, uint8_t lcId);
+  /**
+   * \brief Select the destinations and logical channels that need scheduling
+   *
+   * The function fills the dstsAndLcsToSched map with the destinations and logical channels that pass the
+   * transmission resource (re-)selection check in function TxResourceReselectionCheck
+   *
+   * \param dstsAndLcsToSched The map of destinations and logical channels IDs to be updated
+   */
+  void GetDstsAndLcsNeedingScheduling (std::map<uint32_t, std::vector <uint8_t>> &dstsAndLcsToSched);
+  /**
+   * \brief Select the destination and logical channels to be allocated
+   *
+   * The selection and allocation is done according to TS 38.321 V16.11.0 Section 5.22.1.4.1
+   * At the moment prioritized bitrate is not supported, thus the logic implemented in this function
+   * assumes sPBR = infinity and sBj > 0 for all LCs.
+   *
+   * \param sfn The SfnSf
+   * \param dstsAndLcsToSched The map of destinations and logical channels IDs to allocate
+   * \param allocationInfo the allocation information to be updated
+   * \param candResources the list of resources to be updated with the ones used for the allocation
+   *
+   * \return destination layer 2 ID of the allocated destination if any, zero otherwise
+   */
+  uint32_t LogicalChannelPrioritization (const SfnSf& sfn,
+                                     std::map<uint32_t, std::vector <uint8_t>> dstsAndLcsToSched,
+                                     AllocationInfo &allocationInfo,
+                                     std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> &candResources);
   /**
    * \brief Attempt to select new grant from the selection window
    *
@@ -95,11 +149,14 @@ public:
    * or CreateSinglePduGrant () for dynamic grants
    *
    * \param dstL2Id The destination layer 2 id
-   * \param params The list of NrSlUeMacSchedSapProvider::NrSlSlotInfo
+   * \param candResources The list of candidate resources
    * \param ids available HARQ process IDs
-   * \param tbSize transport block size
+   * \param allocatedRlcPdus the RLC PDU information vector
    */
-  void AttemptGrantAllocation (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids, uint32_t tbSize);
+  void AttemptGrantAllocation (uint32_t dstL2Id,
+                                const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candResources,
+                                const std::deque<uint8_t>& harqIds,
+                                AllocationInfo allocationInfo);
   /**
    * \brief Create future SPS grants based on slot allocation
    *
@@ -122,14 +179,10 @@ public:
    */
   NrSlUeMacSchedSapUser::NrSlGrantInfo CreateSinglePduGrantInfo (const std::set<NrSlSlotAlloc>& params);
   /**
-   * \brief Filter the Transmit opportunities.
-   *
-   * Due to the semi-persistent scheduling, after calling the GetNrSlTxOpportunities
-   * method, and before asking the scheduler for resources, we need to remove
-   * those available slots, which are already part of the existing grant.
+   * \brief Removes resources which are already part of an existing unpublished grant.
    *
    * \param txOppr The list of available slots
-   * \return The list of slots which are not used by any existing semi-persistent grant.
+   * \return The list of resources which are not used by any existing unpublished grant.
    */
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> FilterTxOpportunities (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOppr);
   /**
@@ -149,6 +202,14 @@ public:
    * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
    */
   void CreateSinglePduGrant (const std::set<NrSlSlotAlloc>& slotAllocList, const std::deque<uint8_t>& ids);
+
+  /**
+   * \brief Get an available HARQ Id that hasn't been used for a unpublished grant
+   * \param ids The available HARQ process IDs received from the MAC
+   * \return an available HARQ Id
+   */
+  uint8_t GetUnusedHarqId (const std::deque<uint8_t>& ids);
+
 
   /**
    * \brief Check whether any grants are at the processing delay deadline
@@ -257,39 +318,29 @@ protected:
   /**
    * \brief Do the NE Sidelink allocation
    *
+   * This function selects resources from the candidate list and associate them
+   * to the allocation parameters selected by the scheduler.
    * The SCI 1-A is Txed with every new transmission and after the transmission
    * for, which \c txNumTb mod MaxNumPerReserved == 0 \c , where the txNumTb
    * is the transmission index of the TB, e.g., 0 for initial tx, 1 for a first
    * retransmission, and so on.
+   * Finally, the function updates the logical channels with the corresponding
+   * assigned data.
    *
-   * For allocating resources to more than one LCs of a
-   * destination so they can be multiplexed, one could consider
-   * the following procedure.
-   *
-   * 1. Irrespective of the priority of LCc, sum their buffer size.
-   * 2. Compute the TB size using the AMC given the available resources, the
-   *    buffer size computed in step 1, and the MCS.
-   * 3. Starting from the highest priority LC, distribute the bytes among LCs
-   *    from the TB size computed in step 2 as per their buffer status report
-   *    until we satisfy all the LCs or the TB size computed in step 2 is fully
-   *    consumed. There may be more than one LCs with the same priority, which
-   *    could have same or different buffer sizes. In case of equal buffer sizes,
-   *    these LCs should be assigned equal number of bytes. If these LCs have
-   *    unequal buffer sizes, we can use the minimum buffer size among the LCs
-   *    to assign the same bytes.
-   *
-   * \param params The list of the txOpps from the UE MAC
+   * \param candResources The list of candidate resources received from the UE MAC
    * \param dstInfo The pointer to the NrSlUeMacSchedulerDstInfo of the destination
    *        for which UE MAC asked the scheduler to allocate the resourses
    * \param slotAllocList The slot allocation list to be updated by the scheduler
-   * \param tbSize transport block size in bytes
-   * \return The status of the allocation, true if the destination has been
+   * \param allocationInfo the allocation parameters to be associated to the selected
+   *        resources
+   * \return The status of the resource allocation, true if the destination has been
    *         allocated some resources; false otherwise.
    */
   virtual bool
-  DoNrSlAllocation (const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params,
+  DoNrSlAllocation (const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& candResources,
                     const std::shared_ptr<NrSlUeMacSchedulerDstInfo> &dstInfo,
-                    std::set<NrSlSlotAlloc> &slotAllocList, uint32_t tbSize);
+                    std::set<NrSlSlotAlloc> &slotAllocList,
+                    AllocationInfo allocationInfo);
   /**
    * \brief Method to get total number of sub-channels.
    *
@@ -413,7 +464,9 @@ private:
 
   uint8_t m_initialNrSlMcs   {0}; //!< Initial (or fixed) value for NR SL MCS
 
-  std::map<uint32_t, struct NrSlUeMacSchedSapUser::NrSlGrantInfo> m_grantInfo;
+  std::map<uint32_t, std::vector <NrSlUeMacSchedSapUser::NrSlGrantInfo>> m_grantInfo;
+
+
   Ptr<NrUeMac> m_nrUeMac {nullptr}; //!< Pointer to associated NrUeMac object
   Ptr<UniformRandomVariable> m_ueSelectedUniformVariable; //!< uniform random variable used for NR Sidelink
   double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero
@@ -422,6 +475,7 @@ private:
   Time m_pRsvpTx {MilliSeconds (100)}; //!< Resource Reservation Interval for NR Sidelink in ms
   uint8_t m_t1 {2}; //!< The offset in number of slots between the slot in which the resource selection is triggered and the start of the selection window
 
+  bool m_prioToSps {true}; //!< Flag to give scheduling priority to logical channels that are configured with SPS in case of priority tie
 };
 
 } //namespace ns3
