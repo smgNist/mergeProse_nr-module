@@ -492,6 +492,8 @@ main (int argc, char *argv[])
   ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
   ptrFactory->SetSlSubchannelSize (10);
   ptrFactory->SetSlMaxNumPerReserve (3);
+  std::list<uint16_t> resourceReservePeriodList = {0, 100}; // in ms
+  ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
   //Once parameters are configured, we can create the pool
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   slResourcePoolNr = pool;
@@ -654,14 +656,26 @@ main (int argc, char *argv[])
    * link with the following j UEs, which will be the target UEs
    */
   NS_LOG_INFO ("Configuring unicast direct links..." );
+  SidelinkInfo initSlInfo;
+  initSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  initSlInfo.m_dynamic = true;
+  initSlInfo.m_harqEnabled = false;
+  initSlInfo.m_priority = 0;
+  initSlInfo.m_rri = Seconds (0);
 
+  SidelinkInfo trgtSlInfo;
+  trgtSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  trgtSlInfo.m_dynamic = true;
+  trgtSlInfo.m_harqEnabled = false;
+  trgtSlInfo.m_priority = 0;
+  trgtSlInfo.m_rri = Seconds (0);
   for (uint32_t i = 0; i < slUeNodes.GetN () - 1; ++i)
     {
       for (uint32_t j = i + 1; j < slUeNodes.GetN (); ++j)
         {
           nrSlProseHelper->EstablishRealDirectLink (startDirLinkTime,
-                                                    slUeNetDev.Get (i), slIpv4AddressVector [i],
-                                                    slUeNetDev.Get (j), slIpv4AddressVector [j]);
+                                                    slUeNetDev.Get (i), slIpv4AddressVector [i], initSlInfo,
+                                                    slUeNetDev.Get (j), slIpv4AddressVector [j], trgtSlInfo);
           NS_LOG_INFO ("Initiating UE nodeId " << i << " target UE nodeId " << j );
 
         }

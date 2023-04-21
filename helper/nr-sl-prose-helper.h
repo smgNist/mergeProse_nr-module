@@ -114,10 +114,14 @@ public:
    * \param time The time at which the direct link instances should be created
    * \param initUe The UE initiating the establishment procedure
    * \param initUeIp The IP address used by the initiating UE
+   * \param initSlInfo the traffic profile parameters to be used for the sidelink data radio bearer on the initiating UE
    * \param trgtUE The peer UE
    * \param trgtUeIp The IP address used by the target UE
+   * \param trgtSlInfo the traffic profile parameters to be used for the sidelink data radio bearer on the target UE
    */
-  void EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp);
+  void EstablishRealDirectLink (Time time,
+		                        Ptr<NetDevice> initUe, Ipv4Address initUeIp, struct SidelinkInfo& initSlInfo,
+		                        Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp, struct SidelinkInfo& trgtSlInfo);
 
   /**
    * \brief Establish a 5G ProSe L3 UE-to-Network (U2N) relay connection between
@@ -132,12 +136,15 @@ public:
    * \param t The time at which the L3 U2N connection procedure should start
    * \param remoteUe The remote UE of the connection
    * \param remoteUeIp The IPv4 address used by the remote UE
+   * \param remoteUeSlInfo the traffic profile parameters to be used for the sidelink data radio bearer on the remote UE
    * \param relayUE The relay UE
    * \param relayUeIp The IPv4 address used by the relay UE
+   * \param relayUeSlInfo the traffic profile parameters to be used for the sidelink data radio bearer on the relay UE
    * \param relayServiceCode the relay service code associated to this direct link
    */
-  void EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp,
-                                              Ptr<NetDevice> relayUe, Ipv4Address relayUeIp,
+  void EstablishL3UeToNetworkRelayConnection (Time t,
+		                                      Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp, struct SidelinkInfo& remoteUeSlInfo,
+                                              Ptr<NetDevice> relayUe, Ipv4Address relayUeIp, struct SidelinkInfo& relayUeSlInfo,
                                               uint32_t relayServiceCode);
 
   /**

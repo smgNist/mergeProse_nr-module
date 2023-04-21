@@ -151,7 +151,9 @@ NrSlProseHelper::PrepareSingleUeForUnicast (Ptr<NrUeNetDevice> nrUeDev)
 }
 
 void
-NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4Address initUeIp, Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp)
+NrSlProseHelper::EstablishRealDirectLink (Time time,
+		                                  Ptr<NetDevice> initUe, Ipv4Address initUeIp, struct SidelinkInfo& initSlInfo,
+										  Ptr<NetDevice> trgtUe, Ipv4Address trgtUeIp, struct SidelinkInfo& trgtSlInfo)
 {
   NS_LOG_FUNCTION (this);
   Ptr<NrUeNetDevice> initUeNetDev = initUe->GetObject <NrUeNetDevice>();
@@ -172,21 +174,33 @@ NrSlProseHelper::EstablishRealDirectLink (Time time, Ptr<NetDevice> initUe, Ipv4
 
   NS_LOG_INFO ("initUeL2Id " << initUeL2Id << " trgtUeL2Id " << trgtUeL2Id);
 
+  initSlInfo.m_dstL2Id = trgtUeL2Id;
+  initSlInfo.m_srcL2Id = initUeL2Id;
+  trgtSlInfo.m_dstL2Id = initUeL2Id;
+  trgtSlInfo.m_srcL2Id = trgtUeL2Id;
+
   //Initiating UE
-  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, initUeProse, initUeL2Id, initUeIp, trgtUeL2Id, true, false, 0);
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, initUeProse, initUeL2Id, initUeIp,
+		               trgtUeL2Id, true, 0, initSlInfo);
 
   //Target UE
-  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp, initUeL2Id, false, false, 0);
+  Simulator::Schedule (time, &NrSlUeProse::AddDirectLinkConnection, trgtUeProse, trgtUeL2Id, trgtUeIp,
+		               initUeL2Id, false, 0, trgtSlInfo);
 
 }
 
 void
-NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp,
-                                                        Ptr<NetDevice> relayUe, Ipv4Address relayUeIp,
+NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t,
+                                                        Ptr<NetDevice> remoteUe, Ipv4Address remoteUeIp, struct SidelinkInfo& remoteUeSlInfo,
+                                                        Ptr<NetDevice> relayUe, Ipv4Address relayUeIp, struct SidelinkInfo& relayUeSlInfo,
                                                         uint32_t relayServiceCode)
 {
   NS_LOG_FUNCTION (this);
 
+  if (relayServiceCode <= 0)
+  {
+	  NS_FATAL_ERROR ("Please provide a relay service code greater than zero for U2N relay connection.");
+  }
   Ptr<NrUeNetDevice> remoteUeNetDev = remoteUe->GetObject <NrUeNetDevice>();
   Ptr<NrUeNetDevice> relayUeNetDev = relayUe->GetObject <NrUeNetDevice>();
   Ptr<NrSlUeProse> remoteUeProse = remoteUeNetDev->GetSlUeService ()->GetObject <NrSlUeProse> ();
@@ -205,15 +219,20 @@ NrSlProseHelper::EstablishL3UeToNetworkRelayConnection (Time t, Ptr<NetDevice> r
 
   NS_LOG_DEBUG ("remote UE L2Id: " << remoteUeL2Id << " relay UE L2Id: " << relayUeL2Id);
 
+  remoteUeSlInfo.m_dstL2Id = relayUeL2Id;
+  remoteUeSlInfo.m_srcL2Id = remoteUeL2Id;
+  relayUeSlInfo.m_dstL2Id = remoteUeL2Id;
+  relayUeSlInfo.m_srcL2Id = relayUeL2Id;
+
   //Remote UE (Initiating UE)
   Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection,
                        remoteUeProse, remoteUeL2Id, remoteUeIp, relayUeL2Id,
-                       true, true, relayServiceCode);
+                       true, relayServiceCode, remoteUeSlInfo);
 
   //Relay UE (Target UE)
   Simulator::Schedule (t, &NrSlUeProse::AddDirectLinkConnection,
                        relayUeProse, relayUeL2Id, relayUeIp, remoteUeL2Id,
-                       false, true, relayServiceCode);
+                       false, relayServiceCode, relayUeSlInfo);
 
 }
 

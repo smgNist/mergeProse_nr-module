@@ -438,7 +438,6 @@ main (int argc, char *argv[])
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (2));
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
-  nrHelper->SetUeMacAttribute ("ReservationPeriod", TimeValue (MilliSeconds (10)));
   nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (4));
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
 
@@ -517,6 +516,8 @@ main (int argc, char *argv[])
   ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
   ptrFactory->SetSlSubchannelSize (10);
   ptrFactory->SetSlMaxNumPerReserve (3);
+  std::list<uint16_t> resourceReservePeriodList = {0, 100}; // in ms
+  ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
   //Once parameters are configured, we can create the pool
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   slResourcePoolNr = pool;
@@ -645,11 +646,27 @@ main (int argc, char *argv[])
    * Setup the start of the ProSe direct link establishment procedure
    * (with the 'Real' protocol, PC5-S messages are exchanged over the SL)
    * First UE will be the initiating UE (UE1), which starts the procedure, and it is interested in
-   * establish a direct link with the second UE (UE2), which will be the target UE
+   * establish a direct link with the second UE (UE2), which will be the target UE.
+   * We also configure which traffic profiles will be used by the data radio bearers setup in each UE
+   * for the direct link.
    */
+  SidelinkInfo initSlInfo;
+  initSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  initSlInfo.m_dynamic = true;
+  initSlInfo.m_harqEnabled = false;
+  initSlInfo.m_priority = 0;
+  initSlInfo.m_rri = Seconds (0);
+
+  SidelinkInfo trgtSlInfo;
+  trgtSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  trgtSlInfo.m_dynamic = true;
+  trgtSlInfo.m_harqEnabled = false;
+  trgtSlInfo.m_priority = 0;
+  trgtSlInfo.m_rri = Seconds (0);
+
   nrSlProseHelper->EstablishRealDirectLink (startDirLinkTime,
-                                            ueVoiceNetDev.Get (0), remoteAddress1,
-                                            ueVoiceNetDev.Get (1), remoteAddress2);
+                                            ueVoiceNetDev.Get (0), remoteAddress1, initSlInfo,
+                                            ueVoiceNetDev.Get (1), remoteAddress2, trgtSlInfo);
 
   /*********************** End ProSe configuration ***************************/
 

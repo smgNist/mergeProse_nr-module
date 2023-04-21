@@ -73,7 +73,7 @@ public:
   bool m_hasPendingSlDrb; ///< Flag to indicate if the UE is having a SL-DRB pending for activation
   bool m_hasActiveSlDrb; ///< Flag to indicate if the UE has an active SL-DRB
   uint32_t m_relayServiceCode; ///< the relay service code associated to this direct link
-
+  SidelinkInfo m_slInfo; ///< Traffic profile used for this direct link
 };
 
 /**
@@ -194,11 +194,12 @@ public:
    * \param peerL2Id the layer 2 UD of the peer UE
    * \param isInitiating flag indicating if the UE is initiating the procedure (true)
    *                     or adding the link as result of a request by the peer UE (false)
-   * \param isRelayConn flag indicating if the direct link is for a relay connection (true)
-   * \param relayServiceCode the relay service code associated to this direct link
+   * \param relayServiceCode the relay service code associated to this direct link (if > 0, the connection is for relay)
+   * \param slInfo the traffic profile parameters to be used for the sidelink data radio bearer
    */
   void AddDirectLinkConnection (uint32_t selfL2Id, Ipv4Address selfIp, uint32_t peerL2Id,
-                                bool isInitiating, bool isRelayConn,  uint32_t relayServiceCode);
+                                bool isInitiating, uint32_t relayServiceCode,
+								const struct SidelinkInfo& slInfo);
   /**
    * Map to store direct link context instances indexed by direct link id
    */
@@ -399,6 +400,8 @@ private:
 
   ///< List of relay codes 
   std::map <uint32_t, DiscoveryInfo> m_relayMap;
+
+  SidelinkInfo m_slSrbSlInfo; ///< Default values for traffic profile used for signaling radio bearers
 
   /**
    * \brief Creates the TFT and instructs the activation of the corresponding

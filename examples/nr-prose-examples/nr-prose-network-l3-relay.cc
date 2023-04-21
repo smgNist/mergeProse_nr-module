@@ -511,7 +511,6 @@ main (int argc, char *argv[])
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (2));
   nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
-  nrHelper->SetUeMacAttribute ("ReservationPeriod", TimeValue (MilliSeconds (10)));
   nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (255));
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
   nrHelper->SetUeMacAttribute ("SlThresPsschRsrp", IntegerValue (-128));
@@ -592,6 +591,8 @@ main (int argc, char *argv[])
   ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
   ptrFactory->SetSlSubchannelSize (10);
   ptrFactory->SetSlMaxNumPerReserve (3);
+  std::list<uint16_t> resourceReservePeriodList = {0, 100}; // in ms
+  ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
   //Once parameters are configured, we can create the pool
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
   slResourcePoolNr = pool;
@@ -805,6 +806,19 @@ main (int argc, char *argv[])
    * which starts the procedure, and it is interested in establish a direct
    * link with the following j UEs, which will be the target UEs
    */
+  SidelinkInfo initSlInfo;
+  initSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  initSlInfo.m_dynamic = true;
+  initSlInfo.m_harqEnabled = false;
+  initSlInfo.m_priority = 0;
+  initSlInfo.m_rri = Seconds (0);
+
+  SidelinkInfo trgtSlInfo;
+  trgtSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  trgtSlInfo.m_dynamic = true;
+  trgtSlInfo.m_harqEnabled = false;
+  trgtSlInfo.m_priority = 0;
+  trgtSlInfo.m_rri = Seconds (0);
   NS_LOG_INFO ("Configuring SL-only unicast direct links..." );
 
   for (uint32_t i = 0; i < slUeNodes.GetN () - 1; ++i)
@@ -812,8 +826,8 @@ main (int argc, char *argv[])
       for (uint32_t j = i + 1; j < slUeNodes.GetN (); ++j)
         {
           nrSlProseHelper->EstablishRealDirectLink (startDirLinkTime,
-                                                    slUeNetDev.Get (i), slIpv4AddressVector [i],  // Initiating UE
-                                                    slUeNetDev.Get (j), slIpv4AddressVector [j]); // Target UE
+                                                    slUeNetDev.Get (i), slIpv4AddressVector [i], initSlInfo,  // Initiating UE
+                                                    slUeNetDev.Get (j), slIpv4AddressVector [j], trgtSlInfo); // Target UE
           NS_LOG_INFO ("Initiating UE nodeId " << i << " target UE nodeId " << j );
         }
     }
@@ -842,13 +856,26 @@ main (int argc, char *argv[])
 
   //Configure direct link connection between remote UEs and relay UEs
   NS_LOG_INFO ("Configuring remote UE - relay UE connection..." );
+  SidelinkInfo remoteUeSlInfo;
+  remoteUeSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  remoteUeSlInfo.m_dynamic = true;
+  remoteUeSlInfo.m_harqEnabled = false;
+  remoteUeSlInfo.m_priority = 0;
+  remoteUeSlInfo.m_rri = Seconds (0);
+
+  SidelinkInfo relayUeSlInfo;
+  relayUeSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  relayUeSlInfo.m_dynamic = true;
+  relayUeSlInfo.m_harqEnabled = false;
+  relayUeSlInfo.m_priority = 0;
+  relayUeSlInfo.m_rri = Seconds (0);
   for (uint32_t i = 0; i < slUeNodes.GetN (); ++i)
     {
       for (uint32_t j = 0; j < relayUeNetDev.GetN (); ++j)
         {
           nrSlProseHelper->EstablishL3UeToNetworkRelayConnection (startRelayConnTime,
-                                                                  slUeNetDev.Get (i), slIpv4AddressVector [i], // Remote UE
-                                                                  relayUeNetDev.Get (j), relaysIpv4AddressVector [j], // Relay UE
+                                                                  slUeNetDev.Get (i), slIpv4AddressVector [i], remoteUeSlInfo, // Remote UE
+                                                                  relayUeNetDev.Get (j), relaysIpv4AddressVector [j], relayUeSlInfo, // Relay UE
                                                                   relayServiceCode);
 
           NS_LOG_INFO ("Remote UE nodeId " << i << " Relay UE nodeId " << j);

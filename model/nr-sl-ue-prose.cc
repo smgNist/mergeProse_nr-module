@@ -185,6 +185,11 @@ void NrSlUeProse::ConfigureUnicast ()
   //Tell the RRC to inform the MAC to monitor the UE's own L2Id
   m_nrSlUeSvcRrcSapProvider->MonitorSelfL2Id ();
 
+  //Configure traffic profile for signalind radio bearers
+  m_slSrbSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
+  m_slSrbSlInfo.m_dynamic = true;
+  m_slSrbSlInfo.m_priority = 1;
+
 }
 
 void NrSlUeProse::ConfigureL2IdMonitoringForDiscovery (uint32_t dstL2Id)
@@ -201,15 +206,22 @@ void NrSlUeProse::ConfigureL2IdMonitoringForDiscovery (uint32_t dstL2Id)
 void
 NrSlUeProse::AddDirectLinkConnection (uint32_t selfL2Id, Ipv4Address selfIp,
                                       uint32_t peerL2Id, bool isInitiating,
-                                      bool isRelayConn, uint32_t relayServiceCode)
+                                      uint32_t relayServiceCode,
+									  const struct SidelinkInfo& slInfo)
 {
-  NS_LOG_FUNCTION (this << selfL2Id << selfIp << peerL2Id << isInitiating << isRelayConn << relayServiceCode);
+  NS_LOG_FUNCTION (this << selfL2Id << selfIp << peerL2Id << isInitiating << relayServiceCode);
 
   NS_ASSERT_MSG (selfL2Id == m_l2Id, "L2Id mismatch.");
 
   auto it = m_unicastDirectLinks.find (peerL2Id);
   NS_ASSERT_MSG (it == m_unicastDirectLinks.end (), "Direct link " << selfL2Id << "<-->" << peerL2Id << "already exist. "
                  "We currently support only one direct link connection, which should be configured from the scenario once.");
+
+  bool isRelayConn = false;
+  if (relayServiceCode > 0)
+  {
+	  isRelayConn = true;
+  }
 
   if (isRelayConn && !isInitiating)  //Relay UE
     {
@@ -235,6 +247,7 @@ NrSlUeProse::AddDirectLinkConnection (uint32_t selfL2Id, Ipv4Address selfIp,
   context->m_link = link;
   context->m_nrSlUeProseDirLnkSapProvider = link->GetNrSlUeProseDirLnkSapProvider ();
   context->m_ipInfo.selfIpv4Addr = selfIp;
+  context->m_slInfo = slInfo;
 
   if (isRelayConn)
     {
@@ -266,11 +279,18 @@ NrSlUeProse::DoSendNrSlPc5SMessage (Ptr<Packet> packet, uint32_t dstL2Id,  uint8
   NS_LOG_FUNCTION (this);
 
   //Activate the corresponding SL-SRB for the logical channel, if not active
+  SidelinkInfo slSrbSlInfo;
+  slSrbSlInfo.m_castType = m_slSrbSlInfo.m_castType;
+  slSrbSlInfo.m_dynamic = m_slSrbSlInfo.m_dynamic;
+  slSrbSlInfo.m_priority = m_slSrbSlInfo.m_priority;
+  slSrbSlInfo.m_srcL2Id = m_l2Id;
+  slSrbSlInfo.m_dstL2Id = dstL2Id;
+  slSrbSlInfo.m_lcId = lcId;
   auto it = m_activeSlSrbs.find (dstL2Id);
   if (it == m_activeSlSrbs.end ()) //First SL-SRB for this destination
     {
       //Instruct the RRC to activate the SL-SRB
-      m_nrSlUeSvcRrcSapProvider->ActivateNrSlSignallingRadioBearer (dstL2Id, lcId);
+      m_nrSlUeSvcRrcSapProvider->ActivateNrSlSignallingRadioBearer (slSrbSlInfo);
 
       //Keep track of it
       std::bitset<4> activeLcs;
@@ -282,7 +302,7 @@ NrSlUeProse::DoSendNrSlPc5SMessage (Ptr<Packet> packet, uint32_t dstL2Id,  uint8
       if (it->second [lcId] == false) //First SL-SRB for this lcId
         {
           //Instruct the RRC to activate the SL-SRB
-          m_nrSlUeSvcRrcSapProvider->ActivateNrSlSignallingRadioBearer (dstL2Id, lcId);
+          m_nrSlUeSvcRrcSapProvider->ActivateNrSlSignallingRadioBearer (slSrbSlInfo);
           //Keep track of it
           it->second [lcId] = true;
         }
@@ -660,8 +680,8 @@ NrSlUeProse::ActivateDirectLinkDataRadioBearer (uint32_t peerL2Id, NrSlUeProseDi
   NS_LOG_FUNCTION (this << peerL2Id << ipInfo.peerIpv4Addr);
 
   //Get link
-  auto it = m_unicastDirectLinks.find (peerL2Id);
-  if (it == m_unicastDirectLinks.end ())
+  auto itDirLinkCtxt = m_unicastDirectLinks.find (peerL2Id);
+  if (itDirLinkCtxt == m_unicastDirectLinks.end ())
     {
       NS_FATAL_ERROR ("Could not find the direct link");
     }
@@ -669,13 +689,10 @@ NrSlUeProse::ActivateDirectLinkDataRadioBearer (uint32_t peerL2Id, NrSlUeProseDi
     {
       //Create unicast TFT to be able to transmit to peer UE
       Ptr<LteSlTft> tft;
-      SidelinkInfo slInfo;
-      slInfo.m_castType = SidelinkInfo::CastType::Unicast;
-      slInfo.m_dstL2Id = peerL2Id;
       tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT,
-                              ipInfo.peerIpv4Addr, slInfo);
+                              ipInfo.peerIpv4Addr, itDirLinkCtxt->second->m_slInfo);
       m_nrSlUeSvcNasSapProvider->ActivateSvcNrSlDataRadioBearer (tft);
-      it->second->m_hasPendingSlDrb = true;
+      itDirLinkCtxt->second->m_hasPendingSlDrb = true;
     }
 }
 
