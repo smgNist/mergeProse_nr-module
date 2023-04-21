@@ -1381,18 +1381,21 @@ NrUeMac::FilterNrSlCandidateResources (std::list <NrSlUeMacSchedSapProvider::NrS
      {
        for (auto itGrantVector = itDst.second.begin () ; itGrantVector != itDst.second.end (); ++itGrantVector)
          {
-           auto itCandReso = candidateReso.begin ();
-           while (itCandReso != candidateReso.end ())
+           for (auto itGrantAlloc = itGrantVector->slotAllocations.begin (); itGrantAlloc != itGrantVector->slotAllocations.end (); itGrantAlloc ++)
              {
-               dummyAlloc.sfn = itCandReso->sfn;
-               auto itAlloc = itGrantVector->slotAllocations.find (dummyAlloc);
-               if (itAlloc != itGrantVector->slotAllocations.end ())
+               auto itCandReso = candidateReso.begin ();
+               while (itCandReso != candidateReso.end ())
                  {
-                   itCandReso = candidateReso.erase (itCandReso);
-                 }
-               else
-                 {
-                   ++itCandReso;
+                   //Currently the PHY doesn't handle multiple PSSCH transmissions in the same slot
+                   //Thus, we need to remove all candidate resources belonging to the same slot than a granted resource
+                   if (itGrantAlloc->sfn == itCandReso->sfn)
+                     {
+                       itCandReso = candidateReso.erase (itCandReso);
+                     }
+                   else
+                     {
+                       ++itCandReso;
+                     }
                  }
              }
          }
@@ -1475,7 +1478,7 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
   //and the following parameters: numerology and reservation period.
   uint16_t nsMs = (m_t2-m_t1+1) * (1 / pow(2,numerology)); // number of slots mutiplied by the slot duration in ms
   uint16_t rsvpMs = static_cast <uint16_t> (params.m_pRsvpTx.GetMilliSeconds ()); // reservation period in ms
-  NS_ABORT_MSG_IF (nsMs > rsvpMs, 
+  NS_ABORT_MSG_IF (rsvpMs > 0 && nsMs > rsvpMs,
       "An error may be generated due to the fact that the resource selection window size is higher than the resource reservation period value. Make sure that (T2-T1+1) x (1/(2^numerology)) < reservation period. Modify the values of T1, T2, numerology, and reservation period accordingly.");
 
   //step 4 as per TS 38.214 sec 8.1.4
@@ -1933,7 +1936,7 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
               itGrant->slotAllocations.erase (currentSlotIt);
               NS_LOG_INFO ("Grant at : Frame = " << currentSlot.sfn.GetFrame ()
                            << " SF = " << +currentSlot.sfn.GetSubframe ()
-                           << " slot = " << currentSlot.sfn.GetSlot ());
+                           << " slot = " << +currentSlot.sfn.GetSlot ());
               if (currentSlot.ndi)
                 {
                   Ptr<PacketBurst> pb = CreateObject <PacketBurst> ();

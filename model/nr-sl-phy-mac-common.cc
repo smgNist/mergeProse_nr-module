@@ -25,7 +25,7 @@ namespace ns3 {
 bool
 NrSlSlotAlloc::operator < (const NrSlSlotAlloc &rhs) const
 {
-  return (sfn < rhs.sfn);
+  return (sfn < rhs.sfn || (sfn == rhs.sfn && slPsschSubChStart < rhs.slPsschSubChStart));
 }
 
 bool

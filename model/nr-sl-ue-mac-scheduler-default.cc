@@ -258,7 +258,7 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, const std:
           NS_LOG_INFO ("Resources available (" << candResources.size () << "):");
           for (auto itCandResou : candResources)
             {
-              NS_LOG_INFO (itCandResou.sfn << " slPsschSymStart: " << itCandResou.slPsschSymStart << " slPsschSymLength:" << itCandResou.slPsschSymLength);
+              NS_LOG_INFO (itCandResou.sfn << " slSubchannelStart: " << +itCandResou.slSubchannelStart << " slSubchannelSize:" << itCandResou.slSubchannelSize);
             }
           if (dstL2IdtoServe > 0)
             {
@@ -1066,13 +1066,13 @@ NrSlUeMacSchedulerDefault::CreateSpsGrantInfo (const std::set<NrSlSlotAlloc>& sl
             {
               NS_LOG_DEBUG ("First tx at : Frame = " << slAlloc.sfn.GetFrame ()
                             << " SF = " << +slAlloc.sfn.GetSubframe ()
-                            << " slot = " << slAlloc.sfn.GetSlot ());
+                            << " slot = " << +slAlloc.sfn.GetSlot ());
             }
           else
             {
               NS_LOG_DEBUG ("Rtx at : Frame = " << slAlloc.sfn.GetFrame ()
                             << " SF = " << +slAlloc.sfn.GetSubframe ()
-                            << " slot = " << slAlloc.sfn.GetSlot ());
+                            << " slot = " << +slAlloc.sfn.GetSlot ());
             }
           bool insertStatus = grant.slotAllocations.emplace (slAlloc).second;
           NS_ASSERT_MSG (insertStatus, "slot allocation already exist");
@@ -1101,13 +1101,13 @@ NrSlUeMacSchedulerDefault::CreateSinglePduGrantInfo (const std::set<NrSlSlotAllo
         {
           NS_LOG_DEBUG ("First tx at : Frame = " << slAlloc.sfn.GetFrame ()
                         << " SF = " << +slAlloc.sfn.GetSubframe ()
-                        << " slot = " << slAlloc.sfn.GetSlot ());
+                        << " slot = " << +slAlloc.sfn.GetSlot ());
         }
       else
         {
           NS_LOG_DEBUG ("Rtx at : Frame = " << slAlloc.sfn.GetFrame ()
                         << " SF = " << +slAlloc.sfn.GetSubframe ()
-                        << " slot = " << slAlloc.sfn.GetSlot ());
+                        << " slot = " << +slAlloc.sfn.GetSlot ());
         }
       bool insertStatus = grant.slotAllocations.emplace (slAlloc).second;
       NS_ASSERT_MSG (insertStatus, "slot allocation already exist");
@@ -1203,18 +1203,21 @@ NrSlUeMacSchedulerDefault::FilterTxOpportunities (std::list <NrSlUeMacSchedSapPr
     {
       for (auto itGrantVector = itDst.second.begin () ; itGrantVector != itDst.second.end (); ++itGrantVector)
         {
-          auto itTxOppr = txOppr.begin ();
-          while (itTxOppr != txOppr.end ())
+          for (auto itGrantAlloc = itGrantVector->slotAllocations.begin (); itGrantAlloc != itGrantVector->slotAllocations.end (); itGrantAlloc ++)
             {
-              dummyAlloc.sfn = itTxOppr->sfn;
-              auto itAlloc = itGrantVector->slotAllocations.find (dummyAlloc);
-              if (itAlloc != itGrantVector->slotAllocations.end ())
+              auto itTxOppr = txOppr.begin ();
+              while (itTxOppr != txOppr.end ())
                 {
-                  itTxOppr = txOppr.erase (itTxOppr);
-                }
-              else
-                {
-                  ++itTxOppr;
+                  //Currently the PHY doesn't handle multiple PSSCH transmissions in the same slot
+                  //Thus, we need to remove all candidate resources belonging to the same slot than a granted resource
+                  if (itGrantAlloc->sfn == itTxOppr->sfn)
+                    {
+                      itTxOppr = txOppr.erase (itTxOppr);
+                    }
+                  else
+                    {
+                      ++itTxOppr;
+                    }
                 }
             }
         }
@@ -1374,6 +1377,7 @@ NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapP
   auto itTxOpps = selectedTxOpps.cbegin ();
   for (; itTxOpps != selectedTxOpps.cend (); ++itTxOpps)
     {
+
       NrSlSlotAlloc slotAlloc;
       slotAlloc.sfn = itTxOpps->sfn;
       slotAlloc.dstL2Id = dstInfo->GetDstL2Id ();
@@ -1435,7 +1439,7 @@ NrSlUeMacSchedulerDefault::OverlappedSlots (const std::list<NrSlUeMacSchedSapPro
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
 NrSlUeMacSchedulerDefault::RandomlySelectResources (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << txOpps.size ());
 
   uint8_t totalTx = GetSlMaxTxTransNumPssch ();
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> newTxOpps;
@@ -1454,12 +1458,28 @@ NrSlUeMacSchedulerDefault::RandomlySelectResources (std::list <NrSlUeMacSchedSap
             }
           //erase the selected one from the list
           txOppsIt = txOpps.erase (txOppsIt);
+          if (txOppsIt == txOpps.end ())
+            {
+              break;
+            }
         }
     }
   else
     {
-      newTxOpps = txOpps;
+      //We need to remove overlapped slots here too
+      auto txOppsIt = txOpps.begin ();
+      while (txOppsIt != txOpps.end())
+        {
+          if (!OverlappedSlots (newTxOpps, *txOppsIt))
+            {
+              //copy the slot info into the new list
+              newTxOpps.emplace_back (*txOppsIt);
+            }
+          //erase the selected one from the list
+          txOppsIt = txOpps.erase (txOppsIt);
+        }
     }
+
   //sort the list by SfnSf before returning
   newTxOpps.sort ();
   NS_ASSERT_MSG (newTxOpps.size () <= totalTx, "Number of randomly selected slots exceeded total number of TX");
