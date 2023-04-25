@@ -650,7 +650,7 @@ NrSlUeProse::DoNotifyChangeOfDirectLinkState (uint32_t peerL2Id, NrSlUeProseDirL
 
                 //Depending on the UE Role, we need to tell the NAS to (re)configure the data bearers
                 //to have the data packets flowing in the appropriate path
-                ConfigureDataRadioBearersForU2nRelay (peerL2Id, info.relayInfo, info.ipInfo);
+                ConfigureDataRadioBearersForU2nRelay (peerL2Id, info.relayInfo, info.ipInfo, it->second->m_slInfo);
               }
             else
               {
@@ -699,7 +699,8 @@ NrSlUeProse::ActivateDirectLinkDataRadioBearer (uint32_t peerL2Id, NrSlUeProseDi
 void
 NrSlUeProse::ConfigureDataRadioBearersForU2nRelay (uint32_t peerL2Id,
                                                    NrSlUeProseDirLnkSapUser::DirectLinkRelayInfo relayInfo,
-                                                   NrSlUeProseDirLnkSapUser::DirectLinkIpInfo ipInfo)
+                                                   NrSlUeProseDirLnkSapUser::DirectLinkIpInfo ipInfo,
+                                                   const struct SidelinkInfo& slInfo)
 {
   NS_LOG_FUNCTION (this << peerL2Id << relayInfo.role << ipInfo.peerIpv4Addr);
 
@@ -724,7 +725,7 @@ NrSlUeProse::ConfigureDataRadioBearersForU2nRelay (uint32_t peerL2Id,
 
   //Tell the NAS to (re)configure the UL and SL data bearers to have the data packets
   //flowing in the appropriate path
-  m_nrSlUeSvcNasSapProvider->ConfigureNrSlDataRadioBearersForU2nRelay (peerL2Id, relayInfo.role, ipInfo, relayDrbId);
+  m_nrSlUeSvcNasSapProvider->ConfigureNrSlDataRadioBearersForU2nRelay (peerL2Id, relayInfo.role, ipInfo, relayDrbId, slInfo);
 
 }
 

@@ -878,7 +878,8 @@ main (int argc, char *argv[])
                                                                   relayUeNetDev.Get (j), relaysIpv4AddressVector [j], relayUeSlInfo, // Relay UE
                                                                   relayServiceCode);
 
-          NS_LOG_INFO ("Remote UE nodeId " << i << " Relay UE nodeId " << j);
+          NS_LOG_INFO ("Remote UE nodeId " <<  slUeNetDev.Get (i)->GetNode()->GetId() <<
+                       " Relay UE nodeId " << relayUeNetDev.Get (j)->GetNode()->GetId());
         }
     }
   /******************** END L3 U2N Relay configuration ***********************/
@@ -1098,8 +1099,8 @@ main (int argc, char *argv[])
           Time appStart = slTrafficStartTime + Seconds (startTimeRnd->GetValue ());
           app.Start (appStart);
           slClientApps.Add (app);
-          NS_LOG_INFO ("OnOff application installed in UE nodeId " << i << " srcIp " << slIpv4AddressVector [i] <<
-                       " towards UE nodeId " << j << " dstIp " << slIpv4AddressVector [j] );
+          NS_LOG_INFO ("OnOff application installed in UE nodeId " << slUeNetDev.Get (i)->GetNode()->GetId() << " srcIp " << slIpv4AddressVector [i] <<
+                       " towards UE nodeId " << slUeNetDev.Get (j)->GetNode()->GetId() << " dstIp " << slIpv4AddressVector [j] );
           std::cout << " SL: " << slIpv4AddressVector [i] << " -> " << slIpv4AddressVector [j] <<
             " start time: " << appStart.GetSeconds () << " s, end time: " << simTime  << " s" << std::endl;
 
@@ -1113,8 +1114,8 @@ main (int argc, char *argv[])
               Time appStart = slTrafficStartTime + Seconds (startTimeRnd->GetValue ());
               app.Start (appStart);
               slClientApps.Add (app);
-              NS_LOG_INFO ("OnOff application installed in UE nodeId " << j << " srcIp " << slIpv4AddressVector [j] <<
-                           " towards UE nodeId " << i << " dstIp " << slIpv4AddressVector [i] );
+              NS_LOG_INFO ("OnOff application installed in UE nodeId " << slUeNetDev.Get (j)->GetNode()->GetId() << " srcIp " << slIpv4AddressVector [j] <<
+                           " towards UE nodeId " << slUeNetDev.Get (i)->GetNode()->GetId() << " dstIp " << slIpv4AddressVector [i] );
               std::cout << " SL: " << slIpv4AddressVector [j] << " -> " << slIpv4AddressVector [i] <<
                 " start time: " << appStart.GetSeconds ()  << " s, end time: " << simTime << " s" << std::endl;
             }

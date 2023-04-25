@@ -419,8 +419,12 @@ private:
    * \param peerL2Id the L2 ID of the peer UE in the link
    * \param relayInfo the UE-to-Network relay configuration to use
    * \param ipInfo the IP configuration to use
+   * \param slInfo the parameters to be used for the sidelink data radio bearer
    */
-  void ConfigureDataRadioBearersForU2nRelay (uint32_t peerL2Id, NrSlUeProseDirLnkSapUser::DirectLinkRelayInfo relayInfo, NrSlUeProseDirLnkSapUser::DirectLinkIpInfo ipInfo);
+  void ConfigureDataRadioBearersForU2nRelay (uint32_t peerL2Id,
+                                             NrSlUeProseDirLnkSapUser::DirectLinkRelayInfo relayInfo,
+                                             NrSlUeProseDirLnkSapUser::DirectLinkIpInfo ipInfo,
+                                             const struct SidelinkInfo& slInfo);
 
 };//end of NrSlUeProse class definition
 
