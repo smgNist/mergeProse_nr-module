@@ -1557,7 +1557,11 @@ NrUeMac::GetNrSlCandidateResourcesPrivate (const SfnSf& sfn, const NrSlTransmiss
         << " updated: " << candidatesToCheck.size () << " X: " << GetResourcePercentage ()/ 100.0);
       candidateResources = candidatesToCheck;
     }
-  report.m_candidateResourcesSizeAfterStep5 = candidateResources.size ();
+    else
+    {
+      candidatesToCheck = candidateResources;
+    }
+  report.m_candidateResourcesSizeAfterStep5 = candidatesToCheck.size ();
 
   //step 6
 
