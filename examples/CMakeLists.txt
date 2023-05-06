@@ -68,6 +68,7 @@ set(nr-prose-examples_examples
 set(nr-prose-examples_flowmon_examples
     nr-prose-network-l3-relay
     nr-prose-network-coex
+    milcom-2023
 )
 set(nr-prose-examples_source_files
     nr-v2x-examples/ue-mac-pscch-tx-output-stats.cc
