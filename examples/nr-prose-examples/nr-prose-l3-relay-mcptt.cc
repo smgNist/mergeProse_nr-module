@@ -172,7 +172,7 @@ $ ./ns3 --run "nr-prose-l3-relay-mcptt --Help"
 using namespace ns3;
 using namespace psc;
 
-NS_LOG_COMPONENT_DEFINE ("NrProseRelayOnOff");
+NS_LOG_COMPONENT_DEFINE ("NrProseRelayMcptt");
 
 /**************** Methods for tracing SL using databases *********************/
 /*Please reffer to nr-prose-unicast-multi-link.cc for function documentation */
@@ -196,6 +196,7 @@ void NotifySlRlcPduRx (UeRlcRxOutputStats *stats, uint64_t imsi, uint16_t rnti, 
 {
   stats->Save (imsi, rnti, txRnti, lcid, rxPduSize, delay);
 }
+
 
 /************** END Methods for tracing SL using databases *******************/
 
@@ -624,7 +625,6 @@ main (int argc, char *argv[])
   uint16_t nInNetUes = 1;
   uint16_t nRelayUes = 1;
   uint16_t nRemoteUesPerRelay = 2;
-  uint16_t nRemoteUes = nRelayUes * nRemoteUesPerRelay;
   uint16_t radiusInNetUes = 10; //meters
   uint16_t radiusRelayUes = 15; //meters
   uint16_t radiusRemoteUes = 4; //meters
@@ -679,7 +679,8 @@ main (int argc, char *argv[])
   gNbNodes.Create (1);
   inNetUeNodes.Create (nInNetUes);
   relayUeNodes.Create (nRelayUes);
-  remoteUeNodes.Create (nRelayUes * nRemoteUesPerRelay);
+  uint16_t nRemoteUes = nRelayUes * nRemoteUesPerRelay;
+  remoteUeNodes.Create (nRemoteUes);
 
   Ptr<ListPositionAllocator> gNbPositionAlloc = CreateObject<ListPositionAllocator> ();
   gNbPositionAlloc->Add (Vector (0.0, 0.0, gNbHeight));
@@ -1163,22 +1164,22 @@ main (int argc, char *argv[])
   relayUeSlInfo.m_harqEnabled = false;
   relayUeSlInfo.m_priority = 0;
   relayUeSlInfo.m_rri = Seconds (0);
-  for (uint32_t i = 0; i < remoteUeNodes.GetN (); ++i)
+  uint32_t i = 0;
+  for (uint32_t j = 0; j < relayUeNetDev.GetN (); ++j)
     {
-      for (uint32_t j = 0; j < relayUeNetDev.GetN (); ++j)
+      for (uint32_t count = 0; count < nRemoteUesPerRelay ; ++count)
         {
           nrSlProseHelper->EstablishL3UeToNetworkRelayConnection (startRelayConnTime,
                                                                   remoteUeNetDev.Get (i), remotesIpv4AddressVector [i], remoteUeSlInfo, // Remote UE
                                                                   relayUeNetDev.Get (j), relaysIpv4AddressVector [j], relayUeSlInfo, // Relay UE
                                                                   relayServiceCode);
-
-          NS_LOG_INFO ("Remote UE nodeId " << i << " Relay UE nodeId " << j);
-        }
+          NS_LOG_INFO ("Remote UE nodeId " << remoteUeNodes.Get (i)->GetId () <<
+                       " Relay UE nodeId " << relayUeNodes.Get (j)->GetId ());
+          ++i;        }
     }
   /******************** END L3 U2N Relay configuration ***********************/
 
 #ifdef HAS_NETSIMULYZER
-
   std::string netSimOutputFilename = exampleName + "-netsimulyzer.json";
   auto orchestrator = CreateObject<netsimulyzer::Orchestrator> (netSimOutputFilename);
   orchestrator->SetAttribute ("PollMobility", BooleanValue (false)); // The Nodes don't move during the simulation, so disable mobility polling
@@ -1810,12 +1811,12 @@ main (int argc, char *argv[])
 
   UePhyPscchRxOutputStats pscchPhyStats;
   pscchPhyStats.SetDb (&db, "pscchRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPscchTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPscchTraceUe",
                                  MakeBoundCallback (&NotifySlPscchRx, &pscchPhyStats));
 
   UePhyPsschRxOutputStats psschPhyStats;
   psschPhyStats.SetDb (&db, "psschRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/SpectrumPhy/RxPsschTraceUe",
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPsschTraceUe",
                                  MakeBoundCallback (&NotifySlPsschRx, &psschPhyStats));
   UeRlcRxOutputStats ueRlcRxStats;
   ueRlcRxStats.SetDb (&db, "rlcRx");
@@ -1900,6 +1901,7 @@ main (int argc, char *argv[])
   outFile.setf (std::ios_base::fixed);
   for (std::map<uint32_t, std::vector<Ipv4Address> >::const_iterator itGroupAddr = ipv4addressPerGroup.begin (); itGroupAddr != ipv4addressPerGroup.end (); ++itGroupAddr)
     {
+      outFile << "Group ID: " << itGroupAddr->first << "\n";
       outFile << "#Type\tcallId\tsrcIpd\tdstIp\tnTxPackets\tnRxPackets\tLossRatio\tMeanDelay(ms)\tMeanJitter(ms)\n";
 
       for (std::vector<Ipv4Address>::const_iterator itAddr = itGroupAddr->second.begin (); itAddr != itGroupAddr->second.end (); itAddr++)
