@@ -104,7 +104,7 @@ foreach(
 endforeach()
 
 set(PROSE_L3_RELAY_ON_OFF_LIBRARIES ${libnr} ${libflow-monitor})
-if(${NS3_NETSIMULYZER})
+if(${HAS_NETSIMULYZER})
   set(PROSE_L3_RELAY_ON_OFF_LIBRARIES ${PROSE_L3_RELAY_ON_OFF_LIBRARIES} ${libnetsimulyzer})
 endif()
 
@@ -116,14 +116,23 @@ build_lib_example(
 )
 
 # To be enabled when psc and sip modules are added
-#build_lib_example(
-#  NAME nr-prose-l3-relay-mcptt
-#  SOURCE_FILES nr-prose-examples/nr-prose-l3-relay-mcptt.cc
-#               ${nr-prose-examples_source_files}
-#  LIBRARIES_TO_LINK ${PROSE_L3_RELAY_ON_OFF_LIBRARIES}
-#                    ${libpsc}
-#                    ${libsip}
-#)
+build_lib_example(
+  NAME nr-prose-l3-relay-mcptt
+  SOURCE_FILES nr-prose-examples/nr-prose-l3-relay-mcptt.cc
+               ${nr-prose-examples_source_files}
+  LIBRARIES_TO_LINK ${PROSE_L3_RELAY_ON_OFF_LIBRARIES}
+                    ${libpsc}
+                    ${libsip}
+)
+
+build_lib_example(
+  NAME nr-mcptt-operational-modes-static
+  SOURCE_FILES nr-prose-examples/nr-mcptt-operational-modes-static.cc
+               ${nr-prose-examples_source_files}
+  LIBRARIES_TO_LINK ${PROSE_L3_RELAY_ON_OFF_LIBRARIES}
+                    ${libpsc}
+                    ${libsip}
+)
 
 set(lena-lte-comparison_examples
     lena-lte-comparison-user
