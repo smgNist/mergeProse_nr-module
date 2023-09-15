@@ -372,10 +372,14 @@ NetSimulyzerMcpttMetricsTracer::AccessTimeTrace (Time t, uint32_t userId, uint16
     callId = 3;
   }
 
+
   std::map <uint32_t, Ptr<netsimulyzer::XYSeries> >::iterator it = m_accessTimeTimelineSeriesPerCall.find (callId);
   if (it != m_accessTimeTimelineSeriesPerCall.end ())
     {
-      it->second->Append (Simulator::Now ().GetSeconds (), latency.GetMilliSeconds ());
+      if (result == "I" or result == "Q")
+      {
+        it->second->Append (Simulator::Now ().GetSeconds (), latency.GetMilliSeconds ());
+      }
     }
   else
     {
@@ -384,7 +388,10 @@ NetSimulyzerMcpttMetricsTracer::AccessTimeTrace (Time t, uint32_t userId, uint16
   std::map <uint32_t, Ptr<netsimulyzer::EcdfSink> >::iterator it2 = m_accessTimeEcdfPerCall.find (callId);
   if (it2 != m_accessTimeEcdfPerCall.end ())
     {
-      it2->second->Append (latency.GetMilliSeconds ());
+      if (result == "I" or result == "Q")
+      {
+        it2->second->Append (latency.GetMilliSeconds ());
+      }
     }
   else
     {
@@ -474,7 +481,39 @@ netsimulyzer::Color3Value GetNextColor ()
 
 #endif
 
+std::map<uint16_t, uint16_t> g_accessCounterPerCallId;
 
+void
+CountAccessTimeTrace (uint16_t minNumAccess, Time t, uint32_t userId, uint16_t callId, std::string result, Time latency)
+{
+  //Off network call ID is 3 in the scenario, but higher numbers in the traces.
+  //This workaround works ATM
+  if (callId > 2)
+  {
+    callId = 3;
+  }
+
+  if (result == "I" or result == "Q")
+  {
+    g_accessCounterPerCallId [callId] ++;
+    //std::cout<<"->" << minNumAccess << " " << callId << " " << g_accessCounterPerCallId [callId] << std::endl;
+  }
+  if (minNumAccess > 0)
+  {
+    bool reached = true;
+    for (auto& a:g_accessCounterPerCallId)
+    {
+      if (a.second < minNumAccess)
+      {
+        reached = false;
+      }
+    }
+    if (reached)
+    {
+      Simulator::Stop ();
+    }
+  }
+}
 int
 main (int argc, char *argv[])
 {
@@ -498,6 +537,10 @@ main (int argc, char *argv[])
   uint16_t numerologyCc0Bwp1 = 2; //(From SL examples)  BWP1 will be used for SL
   Time startRelayConnTime = Seconds (2.0); //Time to start the U2N relay connection establishment
   bool enableSensing = false;
+  uint16_t rri = 0;
+  uint16_t slMcs = 14;
+  uint16_t slMaxTxTransNumPssch = 5;
+  bool harqFeedback = false;
 
   //Topology
   uint16_t nUEsPerTeam = 4;
@@ -506,18 +549,26 @@ main (int argc, char *argv[])
   double ueHeight = 1.5; //meters
 
   //Traffic
-  Time timeStartTraffic = Seconds (5.0);
+  Time timeStartTraffic = Seconds (10.0);
 
   //MCPTT configuration
   double cp = 0.0; // Pusher orchestrator Contention Probability
   double vaf = 1.0; // Pusher orchestrator Voice Activity Factor
   double saf = 1.0; // Pusher orchestrator Session Activity Factor
+  bool queueing = false; //Enable Floor control queuing  
 
   //Simulation configuration
   std::string outputDir = "./";
   std::string exampleName = "nr-mcptt-operational-modes-static";
+  uint16_t minNumAccess = 0;
+  bool showProgress = false;
+  bool database = false;
 
-  Time simTime = Seconds (40.0); // seconds
+  //Netsimulyzer
+  bool netsimulyzer = false; //Enable netsimulyzer output
+
+
+  Time simTime = Seconds (40.0); 
 
   CommandLine cmd;
   cmd.AddValue ("simTime", "Total duration of the simulation (s)", simTime);
@@ -525,9 +576,41 @@ main (int argc, char *argv[])
   cmd.AddValue ("cp", "The pusher orchestrator contention probability.", cp);
   cmd.AddValue ("vaf", "The pusher orchestrator voice activity factor.", vaf);
   cmd.AddValue ("saf", "The pusher orchestrator session activity factor.", saf);
+  cmd.AddValue ("queueing", "Whether floor queueing is enabled", queueing);
+  cmd.AddValue ("minNumAccess", "Minimum number of accesses the calls should have before stoping the simulation (Zero disables this mechanism)", minNumAccess);
+  cmd.AddValue ("showProgress", "Show simulation progress every 10s", showProgress);
+  cmd.AddValue ("netsimulyzer", "Whether the netsimulyzer output should be generated", netsimulyzer);
+  cmd.AddValue ("database", "Store PHY and MAC stats in a database", database);
   cmd.AddValue ("enableSensing", "True if sensing is activated", enableSensing);
+  cmd.AddValue ("slNumerology", "Numerology to use in SL", numerologyCc0Bwp1);
+  cmd.AddValue ("rri", "Resource reservation interval for SL SPS scheduling (0 means dynamic scheduling) in miliseconds", rri);
+  cmd.AddValue ("slMcs", "MCS to use in SL", slMcs);
+  cmd.AddValue ("maxNTx", "Maximum number of PSSCH transmissions", slMaxTxTransNumPssch);
+  cmd.AddValue ("harqFeedback", "True if HARQ feedback is activated", harqFeedback);
 
   cmd.Parse (argc, argv);
+
+  Config::SetDefault ("ns3::psc::McpttOnNetworkFloorArbitrator::QueueingSupported", BooleanValue (queueing)); //Redundant with call helper conf
+  if (queueing)
+    {
+      Config::SetDefault ("ns3::psc::McpttFloorQueue::Capacity", UintegerValue (nUEsPerTeam - 1));
+    }
+
+  if (minNumAccess > 0)
+  {
+    simTime = Seconds (10000.0); 
+  }
+
+  std::cout<<"simTime: " << simTime << " nUEsPerTeam: " << nUEsPerTeam 
+  << " cp: " << cp << " vaf: " << vaf << " saf" << saf << " queueing: " << queueing 
+  << " minNumAccess: " <<minNumAccess << " showProgress: " << showProgress
+  << " netsimulyzer: " << netsimulyzer<< " database: " << database 
+  << " enableSensing: " << enableSensing
+  << " slNumerology: " << numerologyCc0Bwp1 
+  << " rri: " << rri
+  << " slMcs: " << slMcs 
+  << " maxNTx: " << slMaxTxTransNumPssch
+  << " harqFeedback: " << harqFeedback <<std::endl;
 
 
   //Setup large enough buffer size to avoid overflow
@@ -557,9 +640,6 @@ main (int argc, char *argv[])
   remoteUeNodes.Create (nRemoteUes);
   offNetUeNodes.Create (nOffNetUes);
 
-
-
-
   //Create the building
   double uesDistanceToGnb_x = 400.0; //m
   double uesDistanceToBuilding_x = 10; //m
@@ -573,52 +653,51 @@ main (int argc, char *argv[])
   buildings.Add (building1);
 
 #ifdef HAS_NETSIMULYZER
+      std::string netSimOutputFilename = exampleName + "-netsimulyzer.json";
+      auto orchestrator = CreateObject<netsimulyzer::Orchestrator> (netSimOutputFilename);
+      orchestrator->SetAttribute ("PollMobility", BooleanValue (false)); // The Nodes don't move during the simulation, so disable mobility polling
+      orchestrator->SetTimeStep (MilliSeconds(100), Time::MS);
 
-  std::string netSimOutputFilename = exampleName + "-netsimulyzer.json";
-  auto orchestrator = CreateObject<netsimulyzer::Orchestrator> (netSimOutputFilename);
-  orchestrator->SetAttribute ("PollMobility", BooleanValue (false)); // The Nodes don't move during the simulation, so disable mobility polling
-  orchestrator->SetTimeStep (MilliSeconds(100), Time::MS);
+      netsimulyzer::NodeConfigurationHelper nodeHelper {
+        orchestrator
+      };
 
-  netsimulyzer::NodeConfigurationHelper nodeHelper {
-    orchestrator
-  };
+      //Nodes for 3D scene
+      nodeHelper.Set ("Model", netsimulyzer::models::SMARTPHONE_VALUE);
+      nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::GREEN});
+      for (uint32_t i = 0; i < inNetUeNodes.GetN (); ++i)
+        {
+          nodeHelper.Set ("Name", StringValue ("InNet UE[" + std::to_string (inNetUeNodes.Get (i)->GetId ()) + "] Call ID 1" ));
+          nodeHelper.Install (inNetUeNodes.Get (i));
+        }
+      nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::BLUE});
+      for (uint32_t i = 0; i < relayUeNodes.GetN (); ++i)
+        {
+          nodeHelper.Set ("Name", StringValue ("Relay UE[" + std::to_string (relayUeNodes.Get (i)->GetId ()) + "]" ));
+          nodeHelper.Install (relayUeNodes.Get (i));
+        }
+      nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::PURPLE});
+      for (uint32_t i = 0; i < remoteUeNodes.GetN (); ++i)
+        {
+          nodeHelper.Set ("Name", StringValue ("Remote UE[" + std::to_string (remoteUeNodes.Get (i)->GetId ()) + "] Call ID 2" ));
+          nodeHelper.Install (remoteUeNodes.Get (i));
+        }
+      nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::RED});
+      for (uint32_t i = 0; i <offNetUeNodes.GetN (); ++i)
+        {
+          nodeHelper.Set ("Name", StringValue ("OffNet UE[" + std::to_string (offNetUeNodes.Get (i)->GetId ())  + "] Call ID 3"));
+          nodeHelper.Install (offNetUeNodes.Get (i));
+        }
 
-  //Nodes for 3D scene
-  nodeHelper.Set ("Model", netsimulyzer::models::SMARTPHONE_VALUE);
-  nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::GREEN});
-  for (uint32_t i = 0; i < inNetUeNodes.GetN (); ++i)
-    {
-      nodeHelper.Set ("Name", StringValue ("InNet UE[" + std::to_string (inNetUeNodes.Get (i)->GetId ()) + "] Call ID 1" ));
-      nodeHelper.Install (inNetUeNodes.Get (i));
-    }
-  nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::BLUE});
-  for (uint32_t i = 0; i < relayUeNodes.GetN (); ++i)
-    {
-      nodeHelper.Set ("Name", StringValue ("Relay UE[" + std::to_string (relayUeNodes.Get (i)->GetId ()) + "]" ));
-      nodeHelper.Install (relayUeNodes.Get (i));
-    }
-  nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::PURPLE});
-  for (uint32_t i = 0; i < remoteUeNodes.GetN (); ++i)
-    {
-      nodeHelper.Set ("Name", StringValue ("Remote UE[" + std::to_string (remoteUeNodes.Get (i)->GetId ()) + "] Call ID 2" ));
-      nodeHelper.Install (remoteUeNodes.Get (i));
-    }
-  nodeHelper.Set ("HighlightColor", netsimulyzer::OptionalValue<netsimulyzer::Color3>{netsimulyzer::RED});
-  for (uint32_t i = 0; i <offNetUeNodes.GetN (); ++i)
-    {
-      nodeHelper.Set ("Name", StringValue ("OffNet UE[" + std::to_string (offNetUeNodes.Get (i)->GetId ())  + "] Call ID 3"));
-      nodeHelper.Install (offNetUeNodes.Get (i));
-    }
+      //Building
+        netsimulyzer::BuildingConfigurationHelper buildingConfigHelper (orchestrator);
+        buildingConfigHelper.Install (buildings);
 
-  //Building
-    netsimulyzer::BuildingConfigurationHelper buildingConfigHelper (orchestrator);
-    buildingConfigHelper.Install (buildings);
-
-  nodeHelper.Set ("Model", netsimulyzer::models::CELL_TOWER_POLE_VALUE);
-  nodeHelper.Set ("Height", netsimulyzer::OptionalValue<double> (10));
-  nodeHelper.Set ("Offset", Vector3DValue (Vector3D(0, 0, -10)));
-  nodeHelper.Set ("Name", StringValue ("gNB"));
-  nodeHelper.Install (gNbNodes);
+      nodeHelper.Set ("Model", netsimulyzer::models::CELL_TOWER_POLE_VALUE);
+      nodeHelper.Set ("Height", netsimulyzer::OptionalValue<double> (10));
+      nodeHelper.Set ("Offset", Vector3DValue (Vector3D(0, 0, -10)));
+      nodeHelper.Set ("Name", StringValue ("gNB"));
+      nodeHelper.Install (gNbNodes);
 
 #endif
 
@@ -805,8 +884,32 @@ main (int argc, char *argv[])
 
   //SL UE MAC configuration
   nrHelper->SetUeMacAttribute ("EnableSensing", BooleanValue (enableSensing));
+
+ //Resource selection window length (given by T1 and T2) depend on the numerology
+  uint16_t t2;
+  switch (numerologyCc0Bwp1)
+  {
+    case 0:
+      //t2 = 33; // with T1 = 2, this gives a window of 32 slots with mu = 0 => 32 ms
+      t2 = 17; // with T1 = 2, this gives a window of 16 slots with mu = 0 => 16 ms
+
+      break;
+    case 1:
+      t2 = 33; // with T1 = 2, this gives a window of 32 slots with mu = 1 => 16 ms
+
+      break;
+    case 2:
+      //t2 = 33; // with T1 = 2, this gives a window of 32 slots with mu = 2 => 8 ms
+      t2 = 65; // with T1 = 2, this gives a window of 64 slots with mu = 2 => 16 ms
+      break;
+
+    default:
+      NS_FATAL_ERROR ("Numerology for sidelink not recognized");
+      break;
+  }
+  NS_LOG_DEBUG ("T2: " << t2 );
   nrHelper->SetUeMacAttribute ("T1", UintegerValue (2));
-  nrHelper->SetUeMacAttribute ("T2", UintegerValue (33));
+  nrHelper->SetUeMacAttribute ("T2", UintegerValue (t2));
   nrHelper->SetUeMacAttribute ("ActivePoolId", UintegerValue (0));
   nrHelper->SetUeMacAttribute ("NumSidelinkProcess", UintegerValue (255));
   nrHelper->SetUeMacAttribute ("EnableBlindReTx", BooleanValue (true));
@@ -869,7 +972,7 @@ main (int argc, char *argv[])
   //Set the SL scheduler attributes
   nrSlHelper->SetNrSlSchedulerTypeId (NrSlUeMacSchedulerDefault::GetTypeId ());
   nrSlHelper->SetUeSlSchedulerAttribute ("FixNrSlMcs", BooleanValue (true));
-  nrSlHelper->SetUeSlSchedulerAttribute ("InitialNrSlMcs", UintegerValue (14));
+  nrSlHelper->SetUeSlSchedulerAttribute ("InitialNrSlMcs", UintegerValue (slMcs));
 
   //Configure U2N relay UEs for SL
   std::set<uint8_t> slBwpIdContainerRelay;
@@ -895,7 +998,7 @@ main (int argc, char *argv[])
   ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
   ptrFactory->SetSlSubchannelSize (10);
   ptrFactory->SetSlMaxNumPerReserve (3);
-  std::list<uint16_t> resourceReservePeriodList = {0, 100}; // in ms
+  std::list<uint16_t> resourceReservePeriodList = {0, rri}; // in ms
   ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
   //Once parameters are configured, we can create the pool
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
@@ -960,7 +1063,7 @@ main (int argc, char *argv[])
   slUeSelectedPreConfig.slProbResourceKeep = 0;
   //Configure the SlPsschTxParameters IE
   LteRrcSap::SlPsschTxParameters psschParams;
-  psschParams.slMaxTxTransNumPssch = 5;
+  psschParams.slMaxTxTransNumPssch = slMaxTxTransNumPssch;
   //Configure the SlPsschTxConfigList IE
   LteRrcSap::SlPsschTxConfigList pscchTxConfigList;
   pscchTxConfigList.slPsschTxParameters [0] = psschParams;
@@ -1143,17 +1246,32 @@ main (int argc, char *argv[])
   NS_LOG_INFO ("Configuring remote UE - relay UE connection..." );
   SidelinkInfo remoteUeSlInfo;
   remoteUeSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
-  remoteUeSlInfo.m_dynamic = true;
-  remoteUeSlInfo.m_harqEnabled = false;
+
+  if (rri > 0)
+  {
+    remoteUeSlInfo.m_dynamic = false;
+  }
+  else
+  {
+    remoteUeSlInfo.m_dynamic = true;
+  }
+  remoteUeSlInfo.m_harqEnabled = harqFeedback;
   remoteUeSlInfo.m_priority = 0;
-  remoteUeSlInfo.m_rri = Seconds (0);
+  remoteUeSlInfo.m_rri = MilliSeconds (rri);
 
   SidelinkInfo relayUeSlInfo;
   relayUeSlInfo.m_castType = SidelinkInfo::CastType::Unicast;
-  relayUeSlInfo.m_dynamic = true;
-  relayUeSlInfo.m_harqEnabled = false;
+  if (rri > 0)
+  {
+    relayUeSlInfo.m_dynamic = false;
+  }
+  else
+  {
+    relayUeSlInfo.m_dynamic = true;
+  }
+  relayUeSlInfo.m_harqEnabled = harqFeedback;
   relayUeSlInfo.m_priority = 0;
-  relayUeSlInfo.m_rri = Seconds (0);
+  relayUeSlInfo.m_rri = MilliSeconds (rri);
   uint32_t i = 0;
   for (uint32_t j = 0; j < relayUeNetDev.GetN (); ++j)
     {
@@ -1419,8 +1537,10 @@ main (int argc, char *argv[])
       uint32_t nodeId = inNetUeNodes.Get (inIdx)->GetId ();
       //Connect transmission trace source to this UE
       std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it = netSimulyzerFlowsPerGroup[groupId].find (nodeId);
-      pttApp->TraceConnectWithoutContext ("TxTrace", MakeCallback (&NetSimulyzerMcpttFlow::TxTrace, &it->second));
-
+      if (netsimulyzer)
+      {
+          pttApp->TraceConnectWithoutContext ("TxTrace", MakeCallback (&NetSimulyzerMcpttFlow::TxTrace, &it->second));
+      }
       //Connect reception trace source to the other transmitters in the group
       for (std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it2 = netSimulyzerFlowsPerGroup[groupId].begin ();
            it2 != netSimulyzerFlowsPerGroup[groupId].end (); ++it2)
@@ -1431,7 +1551,10 @@ main (int argc, char *argv[])
             }
           else
             {
-              pttApp->TraceConnectWithoutContext ("RxTrace", MakeCallback (&NetSimulyzerMcpttFlow::RxTrace, &it2->second));
+              if (netsimulyzer)
+              {
+                pttApp->TraceConnectWithoutContext ("RxTrace", MakeCallback (&NetSimulyzerMcpttFlow::RxTrace, &it2->second));
+              }
             }
         }
 #endif
@@ -1478,8 +1601,10 @@ main (int argc, char *argv[])
       uint32_t nodeId = remoteUeNodes.Get (rmIdx)->GetId ();
       //Connect transmission trace source to this UE
       std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it = netSimulyzerFlowsPerGroup[groupId].find (nodeId);
-      pttApp->TraceConnectWithoutContext ("TxTrace", MakeCallback (&NetSimulyzerMcpttFlow::TxTrace, &it->second));
-
+      if (netsimulyzer)
+      {
+        pttApp->TraceConnectWithoutContext ("TxTrace", MakeCallback (&NetSimulyzerMcpttFlow::TxTrace, &it->second));
+      }
       //Connect reception trace source to the other transmitters in the group
       for (std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it2 = netSimulyzerFlowsPerGroup[groupId].begin ();
            it2 != netSimulyzerFlowsPerGroup[groupId].end (); ++it2)
@@ -1490,7 +1615,10 @@ main (int argc, char *argv[])
             }
           else
             {
-              pttApp->TraceConnectWithoutContext ("RxTrace", MakeCallback (&NetSimulyzerMcpttFlow::RxTrace, &it2->second));
+              if (netsimulyzer)
+              {
+                 pttApp->TraceConnectWithoutContext ("RxTrace", MakeCallback (&NetSimulyzerMcpttFlow::RxTrace, &it2->second));
+              }
             }
         }
 #endif
@@ -1538,8 +1666,10 @@ main (int argc, char *argv[])
       uint32_t nodeId = offNetUeNodes.Get (offIdx)->GetId ();
       //Connect transmission trace source to this UE
       std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it = netSimulyzerFlowsPerGroup[groupId].find (nodeId);
-      pttApp->TraceConnectWithoutContext ("TxTrace", MakeCallback (&NetSimulyzerMcpttFlow::TxTrace, &it->second));
-
+      if (netsimulyzer)
+      {
+        pttApp->TraceConnectWithoutContext ("TxTrace", MakeCallback (&NetSimulyzerMcpttFlow::TxTrace, &it->second));
+      }
       //Connect reception trace source to the other transmitters in the group
       for (std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it2 = netSimulyzerFlowsPerGroup[groupId].begin ();
            it2 != netSimulyzerFlowsPerGroup[groupId].end (); ++it2)
@@ -1550,7 +1680,10 @@ main (int argc, char *argv[])
             }
           else
             {
-              pttApp->TraceConnectWithoutContext ("RxTrace", MakeCallback (&NetSimulyzerMcpttFlow::RxTrace, &it2->second));
+              if (netsimulyzer)
+              {
+                pttApp->TraceConnectWithoutContext ("RxTrace", MakeCallback (&NetSimulyzerMcpttFlow::RxTrace, &it2->second));
+              }
             }
         }
 #endif
@@ -1570,10 +1703,17 @@ main (int argc, char *argv[])
       SidelinkInfo offNetUeSlInfo;
       offNetUeSlInfo.m_castType = SidelinkInfo::CastType::Groupcast;
       offNetUeSlInfo.m_dstL2Id = groupL2Id;
-      offNetUeSlInfo.m_dynamic = true;
-      offNetUeSlInfo.m_harqEnabled = false;
+      if (rri > 0)
+      {
+        offNetUeSlInfo.m_dynamic = false;
+      }
+      else
+      {
+        offNetUeSlInfo.m_dynamic = true;
+      }
+      offNetUeSlInfo.m_harqEnabled = harqFeedback;
       offNetUeSlInfo.m_priority = 0;
-      offNetUeSlInfo.m_rri = Seconds (0);
+      offNetUeSlInfo.m_rri = MilliSeconds (rri);
 
       Ptr<LteSlTft> tft;
       tft = Create<LteSlTft> (LteSlTft::Direction::BIDIRECTIONAL, groupAddress, offNetUeSlInfo);
@@ -1653,7 +1793,7 @@ main (int argc, char *argv[])
                             "AckRequired", BooleanValue (false),
                             "AudioCutIn", BooleanValue (false),
                             "DualFloorSupported", BooleanValue (false),
-                            "QueueingSupported", BooleanValue (true));
+                            "QueueingSupported", BooleanValue (queueing));
   callHelper.SetTowardsParticipant ("ns3::psc::McpttOnNetworkFloorTowardsParticipant",
                                     "ReceiveOnly", BooleanValue (false));
   callHelper.SetParticipant ("ns3::psc::McpttOnNetworkFloorParticipant",
@@ -1725,6 +1865,7 @@ Ptr<McpttTraceHelper> mcpttTraceHelper = CreateObject<McpttTraceHelper> ();
   accessTimeEcdfCollection->GetAttribute ("YAxis", yAxis);
   yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Empirical CDF"));
   yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Maximum", DoubleValue (1.0));
+  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Minimum", DoubleValue (0.0));
   accessTimeEcdfCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
 
   auto m2eLatencyEcdfCollection = CreateObject<netsimulyzer::SeriesCollection> (orchestrator);
@@ -1734,6 +1875,7 @@ Ptr<McpttTraceHelper> mcpttTraceHelper = CreateObject<McpttTraceHelper> ();
   m2eLatencyEcdfCollection->GetAttribute ("YAxis", yAxis);
   yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Name", StringValue ("Empirical CDF"));
   yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Maximum", DoubleValue (1.0));
+  yAxis.Get<netsimulyzer::ValueAxis> ()->SetAttribute ("Minimum", DoubleValue (0.0));
   m2eLatencyEcdfCollection->SetAttribute ("HideAddedSeries", BooleanValue (false));
 
   //Collection to show Timelines of MCPTT metrics per group together
@@ -1762,6 +1904,7 @@ Ptr<McpttTraceHelper> mcpttTraceHelper = CreateObject<McpttTraceHelper> ();
       auto groupAccessTimeEcdf = CreateObject<netsimulyzer::EcdfSink> (orchestrator, "Access time - eCDF - CallId " + std::to_string (callId));
       groupAccessTimeEcdf->GetXAxis ()->SetAttribute ("Name", StringValue ("Access time (ms)"));
       groupAccessTimeEcdf->GetYAxis ()->SetAttribute ("Maximum", DoubleValue (1.0));
+      groupAccessTimeEcdf->GetYAxis ()->SetAttribute ("Minimum", DoubleValue (0.0));
 
       groupAccessTimeEcdf->GetSeries ()->SetAttribute ("Color", GetNextColor ());
       mcpttMetricsTracer.m_accessTimeEcdfPerCall.insert (std::pair<uint32_t, Ptr<netsimulyzer::EcdfSink> > (callId, groupAccessTimeEcdf) );
@@ -1795,43 +1938,48 @@ Ptr<McpttTraceHelper> mcpttTraceHelper = CreateObject<McpttTraceHelper> ();
       mcpttMetricsTracer.m_m2eLatencyTimelineSeriesPerCall.insert (std::pair<uint32_t, Ptr<netsimulyzer::XYSeries> > (callId, groupM2eLatencyTimeline) );
       m2eLatencyTimelineCollection->Add (groupM2eLatencyTimeline);
     }
-
-  mcpttTraceHelper->TraceConnectWithoutContext ("AccessTimeTrace",
-                                                MakeCallback (&NetSimulyzerMcpttMetricsTracer::AccessTimeTrace, &mcpttMetricsTracer));
-  mcpttTraceHelper->TraceConnectWithoutContext ("MouthToEarLatencyTrace",
+    if (netsimulyzer)
+    {
+      mcpttTraceHelper->TraceConnectWithoutContext ("AccessTimeTrace",
+                                                    MakeCallback (&NetSimulyzerMcpttMetricsTracer::AccessTimeTrace, &mcpttMetricsTracer));
+      mcpttTraceHelper->TraceConnectWithoutContext ("MouthToEarLatencyTrace",
                                                 MakeCallback (&NetSimulyzerMcpttMetricsTracer::M2eLatencyTrace, &mcpttMetricsTracer));
-
+    }
 #endif
+
+  //Trace to count the number of accesses and stop the simulation after all calls have at least minNumAccess accesses
+  mcpttTraceHelper->TraceConnectWithoutContext ("AccessTimeTrace", MakeBoundCallback (&CountAccessTimeTrace, minNumAccess));
+
   /**************** END MCPTT metrics tracing ************************************/
 
 
   /************ SL traces database setup *************************************/
   SQLiteOutput db (outputDir + exampleName + "-traces.db");
-
   UeMacPscchTxOutputStats pscchStats;
-  pscchStats.SetDb (&db, "pscchTxUeMac");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/SlPscchScheduling",
-                                 MakeBoundCallback (&NotifySlPscchScheduling, &pscchStats));
-
   UeMacPsschTxOutputStats psschStats;
-  psschStats.SetDb (&db, "psschTxUeMac");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/SlPsschScheduling",
-                                 MakeBoundCallback (&NotifySlPsschScheduling, &psschStats));
-
   UePhyPscchRxOutputStats pscchPhyStats;
-  pscchPhyStats.SetDb (&db, "pscchRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPscchTraceUe",
-                                 MakeBoundCallback (&NotifySlPscchRx, &pscchPhyStats));
-
   UePhyPsschRxOutputStats psschPhyStats;
-  psschPhyStats.SetDb (&db, "psschRxUePhy");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPsschTraceUe",
-                                 MakeBoundCallback (&NotifySlPsschRx, &psschPhyStats));
   UeRlcRxOutputStats ueRlcRxStats;
-  ueRlcRxStats.SetDb (&db, "rlcRx");
-  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/RxRlcPduWithTxRnti",
-                                 MakeBoundCallback (&NotifySlRlcPduRx, &ueRlcRxStats));
-                                 
+
+  if (database)
+  {
+    pscchStats.SetDb (&db, "pscchTxUeMac");
+    Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/SlPscchScheduling",
+                                  MakeBoundCallback (&NotifySlPscchScheduling, &pscchStats));
+    psschStats.SetDb (&db, "psschTxUeMac");
+    Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/SlPsschScheduling",
+                                  MakeBoundCallback (&NotifySlPsschScheduling, &psschStats));
+    pscchPhyStats.SetDb (&db, "pscchRxUePhy");
+    Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPscchTraceUe",
+                                  MakeBoundCallback (&NotifySlPscchRx, &pscchPhyStats));
+    psschPhyStats.SetDb (&db, "psschRxUePhy");
+    Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUePhy/NrSpectrumPhyList/*/RxPsschTraceUe",
+                                  MakeBoundCallback (&NotifySlPsschRx, &psschPhyStats));
+    ueRlcRxStats.SetDb (&db, "rlcRx");
+    Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/$ns3::NrUeNetDevice/ComponentCarrierMapUe/*/NrUeMac/RxRlcPduWithTxRnti",
+                                  MakeBoundCallback (&NotifySlRlcPduRx, &ueRlcRxStats));
+  }
+                              
   /************ END SL traces database setup *************************************/
 
   AsciiTraceHelper ascii;
@@ -1883,17 +2031,45 @@ Ptr<McpttTraceHelper> mcpttTraceHelper = CreateObject<McpttTraceHelper> ();
   monitor->SetAttribute ("JitterBinWidth", DoubleValue (0.001));
   monitor->SetAttribute ("PacketSizeBinWidth", DoubleValue (20));
 
+#ifdef HAS_NETSIMULYZER
+  if (!netsimulyzer)
+  {
+    orchestrator->Dispose ();
+    std::remove (netSimOutputFilename.c_str ());
+  }
+#endif
+
+  if (!database)
+  {
+    std::remove ((outputDir + exampleName + "-traces.db").c_str ());
+  }
+
+  //mcpttClientHelper.EnableLogComponents ();
   //Run simulation
-  Simulator::Stop (simTime);
-  Simulator::Run ();
+  if (showProgress)
+    {
+      ShowProgress progress (Seconds (10));
+      Simulator::Stop (simTime);
+      Simulator::Run ();
+    }
+  else
+    {
+      Simulator::Stop (simTime);
+      Simulator::Run ();
+    }
+
 
   //SL database dump
-  pscchStats.EmptyCache ();
-  psschStats.EmptyCache ();
-  pscchPhyStats.EmptyCache ();
-  psschPhyStats.EmptyCache ();
-  ueRlcRxStats.EmptyCache ();
-
+  if (database)
+  {
+    pscchStats.EmptyCache ();
+    psschStats.EmptyCache ();
+    pscchPhyStats.EmptyCache ();
+    psschPhyStats.EmptyCache ();
+    ueRlcRxStats.EmptyCache ();
+  }
+  
+ 
   //Print per-network-flow statistics
   monitor->CheckForLostPackets ();
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmonHelper.GetClassifier ());
