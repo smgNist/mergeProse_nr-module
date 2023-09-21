@@ -552,6 +552,7 @@ main (int argc, char *argv[])
   Time timeStartTraffic = Seconds (10.0);
 
   //MCPTT configuration
+  bool useMcpttOrchestrator = false;
   double cp = 0.0; // Pusher orchestrator Contention Probability
   double vaf = 1.0; // Pusher orchestrator Voice Activity Factor
   double saf = 1.0; // Pusher orchestrator Session Activity Factor
@@ -573,6 +574,7 @@ main (int argc, char *argv[])
   CommandLine cmd;
   cmd.AddValue ("simTime", "Total duration of the simulation (s)", simTime);
   cmd.AddValue ("nUEsPerTeam", "Number of UEs per team", nUEsPerTeam);
+  cmd.AddValue ("useMcpttOrchestrator", "Use the pusher orchestrator.", useMcpttOrchestrator);
   cmd.AddValue ("cp", "The pusher orchestrator contention probability.", cp);
   cmd.AddValue ("vaf", "The pusher orchestrator voice activity factor.", vaf);
   cmd.AddValue ("saf", "The pusher orchestrator session activity factor.", saf);
@@ -598,11 +600,11 @@ main (int argc, char *argv[])
 
   if (minNumAccess > 0)
   {
-    simTime = Seconds (10000.0); 
+    simTime = Seconds (30000.0);
   }
 
   std::cout<<"simTime: " << simTime << " nUEsPerTeam: " << nUEsPerTeam 
-  << " cp: " << cp << " vaf: " << vaf << " saf" << saf << " queueing: " << queueing 
+  << " useMcpttOrchestrator: " << useMcpttOrchestrator  << " cp: " << cp <<  " vaf: " << vaf << " saf" << saf << " queueing: " << queueing 
   << " minNumAccess: " <<minNumAccess << " showProgress: " << showProgress
   << " netsimulyzer: " << netsimulyzer<< " database: " << database 
   << " enableSensing: " << enableSensing
@@ -781,9 +783,16 @@ main (int argc, char *argv[])
   mobility.Install (offNetUeNodes);
   BuildingsHelper::Install (offNetUeNodes);
 
+  Config::SetDefault ("ns3::NoBackhaulEpcHelper::S5LinkDelay", TimeValue (MilliSeconds (10)));
+  Config::SetDefault ("ns3::NoBackhaulEpcHelper::S5LinkDataRate", DataRateValue (DataRate ("10Gb/s")));
+
   //Setup Helpers
   Ptr<NrHelper> nrHelper = CreateObject<NrHelper> ();
   Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper> ();
+  epcHelper->SetAttribute ("S1uLinkMtu", UintegerValue (15000));
+  epcHelper->SetAttribute ("S1uLinkDataRate", DataRateValue (DataRate ("10Gb/s")));
+  epcHelper->SetAttribute ("S1uLinkDelay", TimeValue (MilliSeconds (10)));
+  epcHelper->SetAttribute ("X2LinkMtu", UintegerValue (15000));
   Ptr<IdealBeamformingHelper> idealBeamformingHelper = CreateObject<IdealBeamformingHelper>();
   nrHelper->SetBeamformingHelper (idealBeamformingHelper);
   nrHelper->SetEpcHelper (epcHelper);
@@ -840,7 +849,6 @@ main (int argc, char *argv[])
   /********************* END Spectrum division ****************************/
 
   nrHelper->SetPathlossAttribute ("ShadowingEnabled", BooleanValue (false));
-  epcHelper->SetAttribute ("S1uLinkDelay", TimeValue (MilliSeconds (0)));
 
   //Set gNB scheduler
   nrHelper->SetSchedulerTypeId (TypeId::LookupByName ("ns3::NrMacSchedulerTdmaRR"));
@@ -1111,17 +1119,35 @@ main (int argc, char *argv[])
   // create the internet and install the IP stack on the UEs
   // get SGW/PGW
   Ptr<Node> pgw = epcHelper->GetPgwNode ();
-  InternetStackHelper internet;
 
-  //Create the IMS server to be used as the MCPTT server
-  Ptr<psc::ImsHelper> imsHelper = CreateObject<psc::ImsHelper> ();
-  imsHelper->ConnectPgw (pgw);
+  // Create a single RemoteHost to host the MCPTT server
+  NodeContainer remoteHostContainer;
+  remoteHostContainer.Create (1);
+  Ptr<Node> remoteHost = remoteHostContainer.Get (0);
+  
+  InternetStackHelper internet;
+  internet.Install (remoteHostContainer);
+
+  //Create the link between the Remote Host and the PGW
+  PointToPointHelper p2ph;
+  p2ph.SetDeviceAttribute ("DataRate", DataRateValue (DataRate ("100Gb/s")));
+  p2ph.SetDeviceAttribute ("Mtu", UintegerValue (1500));
+  p2ph.SetChannelAttribute ("Delay", TimeValue (MilliSeconds (10)));
+  NetDeviceContainer internetDevices = p2ph.Install (pgw, remoteHost);
 
   Ipv4AddressHelper ipv4h;
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
 
   std::cout << "IP configuration: " << std::endl;
+
+  // Configure remote host
+  Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
+  Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting (remoteHost->GetObject<Ipv4> ());
+  remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
+  Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress (1);
+  std::cout << " Remote host (MCPTT Server): " << remoteHostAddr << std::endl;
+
 
   // Configure in-network only UEs
   internet.Install (inNetUeNodes);
@@ -1308,6 +1334,11 @@ main (int argc, char *argv[])
       nodeIdsPerGroup[2].emplace_back (remoteUeNodes.Get (rmIdx)->GetId ());
 
     }
+  for (uint32_t ryIdx = 0; ryIdx < relayUeNodes.GetN (); ++ryIdx)
+    {
+      nodeIdsPerGroup[2].emplace_back (relayUeNodes.Get (ryIdx)->GetId ());
+
+    }
   for (uint32_t rmIdx = 0; rmIdx < offNetUeNodes.GetN (); ++rmIdx)
     {
       nodeIdsPerGroup[3].emplace_back (offNetUeNodes.Get (rmIdx)->GetId ());
@@ -1482,30 +1513,24 @@ main (int argc, char *argv[])
   
   /* In-network MCPPT application comprises McpttPttApp and McpttServerApp
    * - McpttPttApps are installed in each UE
-   * - The McpttServerApp is installed in the IMS node.
+   * - The McpttServerApp is installed in the Remote Host.
    * There are two groups of UEs in the scenario:
    * - Group 1 composed of the In-network UEs (In-network UEs and Relay UEs) and,
    * - Group 2 composed of the Remote UEs.
    * The UEs of a group participate in the same MCPTT call, hence there are two
-   * calls ongoing in the scenario.
-   * Each call has a McpttPusherOrchestrator that controls when each of the
-   * McpttPttApp on the call "pushes the button". The McpttPttApp generates
-   * media traffic if granted the floor for a duration controlled by the
-   * orchestrator.
+   * in-Network calls ongoing in the scenario.
   */
   //MCPTT server configuration
   ApplicationContainer serverApps;
   psc::McpttServerHelper mcpttServerHelper;
 
-  //Install MCPTT sever in the IMS node
-  serverApps.Add (mcpttServerHelper.Install (imsHelper->GetImsNode ()));
+  //Install MCPTT sever in the Remote host node
+  serverApps.Add (mcpttServerHelper.Install (remoteHost));
 
   //Configure IP address of the MCPTT server
   Ptr<psc::McpttServerApp> serverApp = DynamicCast<psc::McpttServerApp> (serverApps.Get (0));
-  Ipv4Address serverAddress = Ipv4Address::ConvertFrom (imsHelper->GetImsGmAddress ());
+  Ipv4Address serverAddress = remoteHostAddr;
   serverApp->SetLocalAddress (serverAddress);
-  std::cout << " IMS node (MCPTT Server): " << serverAddress << std::endl;
-
 
   //MCPTT clients configuration
   psc::McpttHelper mcpttClientHelper;
@@ -1584,11 +1609,10 @@ main (int argc, char *argv[])
       nrHelper->ActivateDedicatedEpsBearer (inNetUeNetDev.Get (inIdx), bearerUl, tftUl);
     }
 
-
+  ApplicationContainer relayClientApps;
   //Remote UEs
   std::cout << "Remote UEs traffic flows: " << std::endl;
   groupId = 2;
-  ApplicationContainer remoteClientApps;
   for (uint32_t rmIdx = 0; rmIdx < remoteUeNodes.GetN (); ++rmIdx)
     {
       //Install MCPTT client the UE
@@ -1623,7 +1647,7 @@ main (int argc, char *argv[])
         }
 #endif
 
-      remoteClientApps.Add (pttApp);
+      relayClientApps.Add (pttApp);
 
       std::cout << " UL: " << remotesIpv4AddressVector [rmIdx] << " -> " << serverAddress  << std::endl;
       std::cout << " DL: " << serverAddress << " -> " << remotesIpv4AddressVector [rmIdx] << std::endl;
@@ -1647,6 +1671,71 @@ main (int argc, char *argv[])
       EpsBearer bearerUl (qUl);
       nrHelper->ActivateDedicatedEpsBearer (remoteUeNetDev.Get (rmIdx), bearerUl, tftUl);
     }
+
+  //Relay UEs
+  std::cout << "Relay UEs traffic flows: " << std::endl;
+  groupId = 2;
+  for (uint32_t ryIdx = 0; ryIdx < relayUeNodes.GetN (); ++ryIdx)
+    {
+      //Install MCPTT client the UE
+      ApplicationContainer pttAppContainer = mcpttClientHelper.Install (relayUeNodes.Get (ryIdx));
+      Ptr<psc::McpttPttApp> pttApp = pttAppContainer.Get (0)->GetObject<psc::McpttPttApp> ();
+      pttApp->SetLocalAddress (relaysIpv4AddressVector[ryIdx]);
+
+#ifdef HAS_NETSIMULYZER
+      //Tracing with netSimulyzer
+      uint32_t nodeId = relayUeNodes.Get (ryIdx)->GetId ();
+      //Connect transmission trace source to this UE
+      std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it = netSimulyzerFlowsPerGroup[groupId].find (nodeId);
+      if (netsimulyzer)
+      {
+        pttApp->TraceConnectWithoutContext ("TxTrace", MakeCallback (&NetSimulyzerMcpttFlow::TxTrace, &it->second));
+      }
+      //Connect reception trace source to the other transmitters in the group
+      for (std::map <uint32_t, NetSimulyzerMcpttFlow>::iterator it2 = netSimulyzerFlowsPerGroup[groupId].begin ();
+           it2 != netSimulyzerFlowsPerGroup[groupId].end (); ++it2)
+        {
+          if (it2->first == nodeId)
+            {
+              continue;
+            }
+          else
+            {
+              if (netsimulyzer)
+              {
+                 pttApp->TraceConnectWithoutContext ("RxTrace", MakeCallback (&NetSimulyzerMcpttFlow::RxTrace, &it2->second));
+              }
+            }
+        }
+#endif
+
+      relayClientApps.Add (pttApp);
+
+      std::cout << " UL: " << relaysIpv4AddressVector [ryIdx] << " -> " << serverAddress  << std::endl;
+      std::cout << " DL: " << serverAddress << " -> " << relaysIpv4AddressVector [ryIdx] << std::endl;
+
+      //DL bearer configuration
+      Ptr<EpcTft> tftDl = Create<EpcTft> ();
+      EpcTft::PacketFilter pfDl;
+      tftDl->Add (pfDl);
+      enum EpsBearer::Qci qDl;
+      qDl = EpsBearer::GBR_CONV_VOICE;
+      EpsBearer bearerDl (qDl);
+      nrHelper->ActivateDedicatedEpsBearer (relayUeNetDev.Get (ryIdx), bearerDl, tftDl);
+
+      //UL bearer configuration
+      Ptr<EpcTft> tftUl = Create<EpcTft> ();
+      EpcTft::PacketFilter pfUl;
+      pfUl.remoteAddress = serverAddress; //IMPORTANT!!!
+      tftUl->Add (pfUl);
+      enum EpsBearer::Qci qUl;
+      qUl = EpsBearer::GBR_CONV_VOICE;
+      EpsBearer bearerUl (qUl);
+      nrHelper->ActivateDedicatedEpsBearer (relayUeNetDev.Get (ryIdx), bearerUl, tftUl);
+    }
+
+
+
 
   //OffNet UEs
   Ipv4Address groupAddress ("225.0.0.0");
@@ -1722,69 +1811,73 @@ main (int argc, char *argv[])
     }
 
 
- //MCPTT client orchestrator configuration
-  //Group 1
-  Ptr<psc::McpttPusherOrchestratorInterface> groupOneMcpttOrchestrator = 0;
-  Ptr<psc::McpttPusherOrchestratorSpurtCdf> groupOneSpurtOrchestrator = CreateObject<psc::McpttPusherOrchestratorSpurtCdf> ();
-  groupOneSpurtOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (vaf));
-  groupOneMcpttOrchestrator = groupOneSpurtOrchestrator;
+  if (useMcpttOrchestrator)
+  {
+  //MCPTT client orchestrator configuration
+    //Group 1
+    Ptr<psc::McpttPusherOrchestratorInterface> groupOneMcpttOrchestrator = 0;
+    Ptr<psc::McpttPusherOrchestratorSpurtCdf> groupOneSpurtOrchestrator = CreateObject<psc::McpttPusherOrchestratorSpurtCdf> ();
+    groupOneSpurtOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (vaf));
+    groupOneMcpttOrchestrator = groupOneSpurtOrchestrator;
 
-  Ptr<psc::McpttPusherOrchestratorContention> groupOneContentionOrchestrator = CreateObject<psc::McpttPusherOrchestratorContention> ();
-  groupOneContentionOrchestrator->SetAttribute ("ContentionProbability", DoubleValue (cp));
-  groupOneContentionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupOneMcpttOrchestrator));
-  groupOneMcpttOrchestrator = groupOneContentionOrchestrator;
+    Ptr<psc::McpttPusherOrchestratorContention> groupOneContentionOrchestrator = CreateObject<psc::McpttPusherOrchestratorContention> ();
+    groupOneContentionOrchestrator->SetAttribute ("ContentionProbability", DoubleValue (cp));
+    groupOneContentionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupOneMcpttOrchestrator));
+    groupOneMcpttOrchestrator = groupOneContentionOrchestrator;
 
-  Ptr<psc::McpttPusherOrchestratorSessionCdf> groupOneSessionOrchestrator = CreateObject<psc::McpttPusherOrchestratorSessionCdf> ();
-  groupOneSessionOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (saf));
-  groupOneSessionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupOneMcpttOrchestrator));
-  groupOneMcpttOrchestrator = groupOneSessionOrchestrator;
+    Ptr<psc::McpttPusherOrchestratorSessionCdf> groupOneSessionOrchestrator = CreateObject<psc::McpttPusherOrchestratorSessionCdf> ();
+    groupOneSessionOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (saf));
+    groupOneSessionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupOneMcpttOrchestrator));
+    groupOneMcpttOrchestrator = groupOneSessionOrchestrator;
 
-  groupOneMcpttOrchestrator->StartAt (timeStartTraffic);
-  groupOneMcpttOrchestrator->StopAt (simTime - Seconds (1.0));
+    groupOneMcpttOrchestrator->StartAt (timeStartTraffic);
+    groupOneMcpttOrchestrator->StopAt (simTime - Seconds (1.0));
 
-  //Group 2
-  Ptr<psc::McpttPusherOrchestratorInterface> groupTwoMcpttOrchestrator = 0;
-  Ptr<psc::McpttPusherOrchestratorSpurtCdf> groupTwoSpurtOrchestrator = CreateObject<psc::McpttPusherOrchestratorSpurtCdf> ();
-  groupTwoSpurtOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (vaf));
-  groupTwoMcpttOrchestrator = groupTwoSpurtOrchestrator;
+    //Group 2
+    Ptr<psc::McpttPusherOrchestratorInterface> groupTwoMcpttOrchestrator = 0;
+    Ptr<psc::McpttPusherOrchestratorSpurtCdf> groupTwoSpurtOrchestrator = CreateObject<psc::McpttPusherOrchestratorSpurtCdf> ();
+    groupTwoSpurtOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (vaf));
+    groupTwoMcpttOrchestrator = groupTwoSpurtOrchestrator;
 
-  Ptr<psc::McpttPusherOrchestratorContention> groupTwoContentionOrchestrator = CreateObject<psc::McpttPusherOrchestratorContention> ();
-  groupTwoContentionOrchestrator->SetAttribute ("ContentionProbability", DoubleValue (cp));
-  groupTwoContentionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupTwoMcpttOrchestrator));
-  groupTwoMcpttOrchestrator = groupTwoContentionOrchestrator;
+    Ptr<psc::McpttPusherOrchestratorContention> groupTwoContentionOrchestrator = CreateObject<psc::McpttPusherOrchestratorContention> ();
+    groupTwoContentionOrchestrator->SetAttribute ("ContentionProbability", DoubleValue (cp));
+    groupTwoContentionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupTwoMcpttOrchestrator));
+    groupTwoMcpttOrchestrator = groupTwoContentionOrchestrator;
 
-  Ptr<psc::McpttPusherOrchestratorSessionCdf> groupTwoSessionOrchestrator = CreateObject<psc::McpttPusherOrchestratorSessionCdf> ();
-  groupTwoSessionOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (saf));
-  groupTwoSessionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupTwoMcpttOrchestrator));
-  groupTwoMcpttOrchestrator = groupTwoSessionOrchestrator;
+    Ptr<psc::McpttPusherOrchestratorSessionCdf> groupTwoSessionOrchestrator = CreateObject<psc::McpttPusherOrchestratorSessionCdf> ();
+    groupTwoSessionOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (saf));
+    groupTwoSessionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupTwoMcpttOrchestrator));
+    groupTwoMcpttOrchestrator = groupTwoSessionOrchestrator;
 
-  groupTwoMcpttOrchestrator->StartAt (timeStartTraffic);
-  groupTwoMcpttOrchestrator->StopAt (simTime - Seconds (1.0));
+    groupTwoMcpttOrchestrator->StartAt (timeStartTraffic);
+    groupTwoMcpttOrchestrator->StopAt (simTime - Seconds (1.0));
 
- //Group 3
-  Ptr<psc::McpttPusherOrchestratorInterface> groupThreeMcpttOrchestrator = 0;
-  Ptr<psc::McpttPusherOrchestratorSpurtCdf> groupThreeSpurtOrchestrator = CreateObject<psc::McpttPusherOrchestratorSpurtCdf> ();
-  groupThreeSpurtOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (vaf));
-  groupThreeMcpttOrchestrator = groupThreeSpurtOrchestrator;
+  //Group 3
+    Ptr<psc::McpttPusherOrchestratorInterface> groupThreeMcpttOrchestrator = 0;
+    Ptr<psc::McpttPusherOrchestratorSpurtCdf> groupThreeSpurtOrchestrator = CreateObject<psc::McpttPusherOrchestratorSpurtCdf> ();
+    groupThreeSpurtOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (vaf));
+    groupThreeMcpttOrchestrator = groupThreeSpurtOrchestrator;
 
-  Ptr<psc::McpttPusherOrchestratorContention> groupThreeContentionOrchestrator = CreateObject<psc::McpttPusherOrchestratorContention> ();
-  groupThreeContentionOrchestrator->SetAttribute ("ContentionProbability", DoubleValue (cp));
-  groupThreeContentionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupThreeMcpttOrchestrator));
-  groupThreeMcpttOrchestrator = groupThreeContentionOrchestrator;
+    Ptr<psc::McpttPusherOrchestratorContention> groupThreeContentionOrchestrator = CreateObject<psc::McpttPusherOrchestratorContention> ();
+    groupThreeContentionOrchestrator->SetAttribute ("ContentionProbability", DoubleValue (cp));
+    groupThreeContentionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupThreeMcpttOrchestrator));
+    groupThreeMcpttOrchestrator = groupThreeContentionOrchestrator;
 
-  Ptr<psc::McpttPusherOrchestratorSessionCdf> groupThreeSessionOrchestrator = CreateObject<psc::McpttPusherOrchestratorSessionCdf> ();
-  groupThreeSessionOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (saf));
-  groupThreeSessionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupThreeMcpttOrchestrator));
-  groupThreeMcpttOrchestrator = groupThreeSessionOrchestrator;
+    Ptr<psc::McpttPusherOrchestratorSessionCdf> groupThreeSessionOrchestrator = CreateObject<psc::McpttPusherOrchestratorSessionCdf> ();
+    groupThreeSessionOrchestrator->SetAttribute ("ActivityFactor", DoubleValue (saf));
+    groupThreeSessionOrchestrator->SetAttribute ("Orchestrator", PointerValue (groupThreeMcpttOrchestrator));
+    groupThreeMcpttOrchestrator = groupThreeSessionOrchestrator;
 
-  groupThreeMcpttOrchestrator->StartAt (timeStartTraffic);
-  groupThreeMcpttOrchestrator->StopAt (simTime - Seconds (1.0));
+    groupThreeMcpttOrchestrator->StartAt (timeStartTraffic);
+    groupThreeMcpttOrchestrator->StopAt (simTime - Seconds (1.0));
 
 
-  //Connect MCPTT client apps with the orchestrator
-  mcpttClientHelper.AddPushersToOrchestrator (groupOneMcpttOrchestrator, inNetClientApps);
-  mcpttClientHelper.AddPushersToOrchestrator (groupTwoMcpttOrchestrator, remoteClientApps);
-  mcpttClientHelper.AddPushersToOrchestrator (groupThreeMcpttOrchestrator, offNetClientApps);
+    //Connect MCPTT client apps with the orchestrator
+    mcpttClientHelper.AddPushersToOrchestrator (groupOneMcpttOrchestrator, inNetClientApps);
+    mcpttClientHelper.AddPushersToOrchestrator (groupTwoMcpttOrchestrator, relayClientApps);
+    mcpttClientHelper.AddPushersToOrchestrator (groupThreeMcpttOrchestrator, offNetClientApps);
+  }
+
 
   //Configure MCPTT calls
   psc::McpttCallHelper callHelper;
@@ -1815,7 +1908,7 @@ main (int argc, char *argv[])
   ipv4addressPerGroup.insert (std::pair < uint32_t, std::vector<Ipv4Address> > (groupId, inNetIpv4AddressVector));
 
   groupId = 2;
-  callHelper.AddCall (remoteClientApps, 
+  callHelper.AddCall (relayClientApps, 
                       serverApp, 
                       groupId,
                       psc::McpttCallMsgFieldCallType::BASIC_GROUP,
@@ -1823,6 +1916,7 @@ main (int argc, char *argv[])
                       simTime - Seconds (1.0));
 
   ipv4addressPerGroup.insert (std::pair < uint32_t, std::vector<Ipv4Address> > (groupId, remotesIpv4AddressVector));
+  //TODO: add relay addresses too
 
   groupId = 3;
   callHelper.AddCallOffNetwork (offNetClientApps,
@@ -1837,7 +1931,7 @@ main (int argc, char *argv[])
 
   ApplicationContainer allClientApps;
   allClientApps.Add (inNetClientApps);
-  allClientApps.Add (remoteClientApps);
+  allClientApps.Add (relayClientApps);
   allClientApps.Add (offNetClientApps);
 
   allClientApps.Start (timeStartTraffic - Seconds (0.4));
@@ -2023,8 +2117,10 @@ Ptr<McpttTraceHelper> mcpttTraceHelper = CreateObject<McpttTraceHelper> ();
   NodeContainer endpointNodes;
   endpointNodes.Add (inNetUeNodes);
   endpointNodes.Add (remoteUeNodes);
+  endpointNodes.Add (relayUeNodes);
   endpointNodes.Add (offNetUeNodes);
-  endpointNodes.Add (imsHelper->GetImsNode ());
+  endpointNodes.Add (remoteHost);
+
 
   Ptr<ns3::FlowMonitor> monitor = flowmonHelper.Install (endpointNodes);
   monitor->SetAttribute ("DelayBinWidth", DoubleValue (0.001));
