@@ -116,26 +116,46 @@ the_table.scale(0.6,1.1)
 
 #plt.title('Access time for immediate responses (queuing disabled)')
 plt.xlabel('t (ms)', fontsize=12)
-#plt.xlim([0,1400])
-#plt.xticks(np.arange(0,1400,200))
+plt.xlim([0,1400])
+plt.xticks(np.arange(0,1400,200))
 plt.ylabel('Probability that access time <= t', fontsize=12)
 arr = np.array(on_network)
 print("on network  num: %d min: %f max: %f" % (arr.size, np.amin (arr), np.amax (arr)))
-x = np.sort(arr)
-y = np.arange(len(x))/float(len(x))
-plt.plot(x, y, color='black',linestyle='solid',label='on network')
+x_onNet = np.sort(arr)
+y_onNet = np.arange(len(x_onNet))/float(len(x_onNet))
+plt.plot(x_onNet, y_onNet, color='black',linestyle='solid',label='on network')
 arr = np.array(off_network)
 print("off network num: %d min: %f max: %f" % (arr.size, np.amin (arr), np.amax (arr)))
-x = np.sort(arr)
-y = np.arange(len(x))/float(len(x))
-plt.plot(x, y, color='blue',linestyle='dashed',label='off network')
+x_offNet = np.sort(arr)
+y_offNet = np.arange(len(x_offNet))/float(len(x_offNet))
+plt.plot(x_offNet, y_offNet, color='blue',linestyle='dashed',label='off network')
 arr = np.array(relay)
 print("relay       num: %d min: %f max: %f" % (arr.size, np.amin (arr), np.amax (arr)))
-x = np.sort(arr)
-y = np.arange(len(x))/float(len(x))
-plt.plot(x, y, color='green',linestyle='dotted',label='relay')
+x_relay = np.sort(arr)
+y_relay = np.arange(len(x_relay))/float(len(x_relay))
+plt.plot(x_relay, y_relay, color='green',linestyle='dotted',label='relay')
 plt.legend(loc="center right")
 plt.grid()
 output = dirname + '/' + basename + '-cdf.pdf'
 plt.savefig(output, bbox_inches='tight', format='pdf')
 plt.close()
+
+#Write eCDFs raw data to files
+outputRaw = dirname + '/' + basename + '-cdf_onNet.txt'
+np.savetxt(outputRaw, (x_onNet, y_onNet), fmt='%.6g', delimiter='\t', newline=os.linesep)
+outputRaw = dirname + '/' + basename + '-cdf_offNet.txt'
+np.savetxt(outputRaw, (x_offNet, y_offNet), fmt='%.6g', delimiter='\t', newline=os.linesep)
+outputRaw = dirname + '/' + basename + '-cdf_relay.txt'
+np.savetxt(outputRaw, (x_relay, y_relay), fmt='%.6g', delimiter='\t', newline=os.linesep)
+
+
+#Write Outcome table to file
+outputTableRaw = dirname + '/' + basename + '-outcomes.txt'
+ouputTable = [['%.0f%%' % (100*elem) for elem in percentages_list[0]],
+	['%.0f%%' % (100*elem) for elem in percentages_list[1]],
+	['%.0f%%' % (100*elem) for elem in percentages_list[2]]]
+with open(outputTableRaw, "w") as f:
+    f.write("-\t" + "\t".join(columns) + "\n")
+    f.write("on-network\t" + "\t".join(ouputTable[0]) + "\n")
+    f.write("off-network\t" + "\t".join(ouputTable[1]) + "\n")
+    f.write("relay\t" + "\t".join(ouputTable[2]) + "\n")

@@ -510,6 +510,10 @@ CountAccessTimeTrace (uint16_t minNumAccess, Time t, uint32_t userId, uint16_t c
     }
     if (reached)
     {
+      for (auto& a:g_accessCounterPerCallId)
+      {
+        std::cout<<"Call ID " << a.first << " Number of I or Q accesses: " << a.second << std::endl;
+      }
       Simulator::Stop ();
     }
   }
@@ -564,6 +568,8 @@ main (int argc, char *argv[])
   uint16_t minNumAccess = 0;
   bool showProgress = false;
   bool database = false;
+  bool offNetMediaSps = false;
+  bool relayMediaSps = false;
 
   //Netsimulyzer
   bool netsimulyzer = false; //Enable netsimulyzer output
@@ -589,6 +595,8 @@ main (int argc, char *argv[])
   cmd.AddValue ("slMcs", "MCS to use in SL", slMcs);
   cmd.AddValue ("maxNTx", "Maximum number of PSSCH transmissions", slMaxTxTransNumPssch);
   cmd.AddValue ("harqFeedback", "True if HARQ feedback is activated", harqFeedback);
+  cmd.AddValue ("offNetMediaSps", "True if SPS scheduling for off-netwrok group media packets ", offNetMediaSps);
+  cmd.AddValue ("relayMediaSps", "True if SPS scheduling for relay group media packets ", relayMediaSps);
 
   cmd.Parse (argc, argv);
 
@@ -612,8 +620,9 @@ main (int argc, char *argv[])
   << " rri: " << rri
   << " slMcs: " << slMcs 
   << " maxNTx: " << slMaxTxTransNumPssch
-  << " harqFeedback: " << harqFeedback <<std::endl;
-
+  << " harqFeedback: " << harqFeedback 
+  << " offNetMediaSps: " << offNetMediaSps 
+  << " relayMediaSps: " << relayMediaSps << std::endl;
 
   //Setup large enough buffer size to avoid overflow
   Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
@@ -1006,7 +1015,16 @@ main (int argc, char *argv[])
   ptrFactory->SetSlFreqResourcePscch (10); // PSCCH RBs
   ptrFactory->SetSlSubchannelSize (10);
   ptrFactory->SetSlMaxNumPerReserve (3);
-  std::list<uint16_t> resourceReservePeriodList = {0, rri}; // in ms
+  std::list<uint16_t> resourceReservePeriodList;
+  if ((offNetMediaSps || relayMediaSps) && rri != 20)
+  {
+    resourceReservePeriodList = {0, rri, 20}; // in ms
+  }
+  else
+  {
+    resourceReservePeriodList = {0, rri}; // in ms
+
+  }
   ptrFactory->SetSlResourceReservePeriodList (resourceReservePeriodList);
   //Once parameters are configured, we can create the pool
   LteRrcSap::SlResourcePoolNr pool = ptrFactory->CreatePool ();
@@ -1309,11 +1327,53 @@ main (int argc, char *argv[])
                                                                   relayServiceCode);
           NS_LOG_INFO ("Remote UE nodeId " << remoteUeNodes.Get (i)->GetId () <<
                        " Relay UE nodeId " << relayUeNodes.Get (j)->GetId ());
-          ++i;        }
+          ++i;        
+        }
     }
   /******************** END L3 U2N Relay configuration ***********************/
 
+  //Setup SL bearers on the relay for the media traffic. TODO: this does not scale 
+  if (relayMediaSps)
+  {
 
+    uint32_t ryDstL2Id = 5;  //5 in this scenario TODO: this does not scale
+    uint32_t rmDstL2Id = 6;  //Starts at 6 in this scenario TODO: this does not scale
+    uint16_t relayGroupMediaPort = 9004; //Starts at 4 in this scenario TODO: this does not scale
+
+    for (uint32_t rm = 0; rm < remoteUeNetDev.GetN (); ++rm)
+      {
+        SidelinkInfo relayUeSlInfo_media;
+        relayUeSlInfo_media.m_castType = SidelinkInfo::CastType::Unicast;
+        relayUeSlInfo_media.m_dstL2Id = rmDstL2Id;
+        relayUeSlInfo_media.m_dynamic = false;
+        relayUeSlInfo_media.m_harqEnabled = harqFeedback;
+        relayUeSlInfo_media.m_priority = 0;
+        relayUeSlInfo_media.m_rri = MilliSeconds (20);
+
+        Ptr<LteSlTft> tft_media_ry;
+        tft_media_ry = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, remotesIpv4AddressVector [rm], relayGroupMediaPort, relayUeSlInfo_media);
+        std::cout << "-->In the relay: " <<  remotesIpv4AddressVector [rm] << " " << relayGroupMediaPort << " " << rmDstL2Id <<std::endl;
+
+        nrSlHelper->ActivateNrSlBearer (startRelayConnTime - MilliSeconds (50), relayUeNetDev.Get (0), tft_media_ry);
+
+        SidelinkInfo rmUeSlInfo_media;
+        rmUeSlInfo_media.m_castType = SidelinkInfo::CastType::Unicast;
+        rmUeSlInfo_media.m_dstL2Id = ryDstL2Id;
+        rmUeSlInfo_media.m_dynamic = false;
+        rmUeSlInfo_media.m_harqEnabled = harqFeedback;
+        rmUeSlInfo_media.m_priority = 0;
+        rmUeSlInfo_media.m_rri = MilliSeconds (20);
+
+        Ptr<LteSlTft> tft_media_rm;
+        tft_media_rm = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, relaysIpv4AddressVector [0], relayGroupMediaPort, rmUeSlInfo_media);
+        std::cout << "-->In the remote: " <<  relaysIpv4AddressVector [0] << " " << relayGroupMediaPort <<std::endl;
+
+        nrSlHelper->ActivateNrSlBearer (startRelayConnTime - MilliSeconds (50), remoteUeNetDev.Get (rm), tft_media_rm);
+
+        rmDstL2Id ++;
+        relayGroupMediaPort ++;
+      }
+  }
 
 #ifdef HAS_NETSIMULYZER
 
@@ -1789,6 +1849,26 @@ main (int argc, char *argv[])
       
       //SL bearer config
       Time slBearerActivationTime = Seconds (2.0); 
+
+      //Before the other bearer activation otherwise it doesn't work
+      if (offNetMediaSps)
+      {
+        uint16_t mediaPort = 9009;
+        SidelinkInfo offNetUeSlInfo_media;
+        offNetUeSlInfo_media.m_castType = SidelinkInfo::CastType::Groupcast;
+        offNetUeSlInfo_media.m_dstL2Id = groupL2Id;
+        offNetUeSlInfo_media.m_dynamic = false;
+        offNetUeSlInfo_media.m_harqEnabled = harqFeedback;
+        offNetUeSlInfo_media.m_priority = 0;
+        offNetUeSlInfo_media.m_rri = MilliSeconds (20);
+
+        Ptr<LteSlTft> tft_media;
+        tft_media = Create<LteSlTft> (LteSlTft::Direction::BIDIRECTIONAL, groupAddress, mediaPort, offNetUeSlInfo_media);
+
+        nrSlHelper->ActivateNrSlBearer (slBearerActivationTime, offNetUeNetDev, tft_media);
+      }
+
+
       SidelinkInfo offNetUeSlInfo;
       offNetUeSlInfo.m_castType = SidelinkInfo::CastType::Groupcast;
       offNetUeSlInfo.m_dstL2Id = groupL2Id;
@@ -1808,6 +1888,9 @@ main (int argc, char *argv[])
       tft = Create<LteSlTft> (LteSlTft::Direction::BIDIRECTIONAL, groupAddress, offNetUeSlInfo);
 
       nrSlHelper->ActivateNrSlBearer (slBearerActivationTime, offNetUeNetDev, tft);
+
+
+
     }
 
 
